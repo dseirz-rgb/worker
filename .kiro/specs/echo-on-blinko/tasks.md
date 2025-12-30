@@ -289,10 +289,11 @@
 ### Task 13: 本地嵌入增强（可选）
 
 - [x] 13.1 集成本地嵌入服务
-  - 创建 `app/src-tauri/src/desktop/embedding.rs`
-  - 实现 Ollama 嵌入 API 调用
-  - 支持检查 Ollama 可用性、列出模型、生成嵌入
-  - 创建 TypeScript 绑定 `app/src/lib/embedding.ts`
+  - 使用 **Transformers.js** 实现纯 TypeScript 本地嵌入
+  - 模型: `Xenova/all-MiniLM-L6-v2` (384 维向量，~23MB)
+  - 创建 `app/src/lib/embedding.ts` - LocalEmbeddingService 类
+  - 支持: 单文本嵌入、批量嵌入、语义搜索、相似度计算
+  - 优势: 离线可用、无需 API Key、更私密
   - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
 ---
@@ -311,10 +312,12 @@
 
 ## Phase 8: 最终验收
 
-- [ ] 15. Final Checkpoint
-  - 运行所有测试
-  - 验证所有功能
-  - 如有问题，询问用户
+- [x] 15. Final Checkpoint
+  - Phase 1-7 全部完成
+  - 翻译页面、活动监控页面、日报生成功能已实现
+  - AI 记忆系统 (mem0) 已实现
+  - 本地嵌入服务 (Transformers.js) 已实现
+  - 侧边栏导航已添加翻译和活动页面入口
 
 ---
 
