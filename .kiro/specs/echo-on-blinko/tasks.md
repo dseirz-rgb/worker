@@ -288,18 +288,23 @@
 
 ### Task 13: 本地嵌入增强（可选）
 
-- [ ]* 13.1 集成 fastembed-rs
-  - 创建 `app/tauri-plugin-blinko/src/embedding.rs`
-  - 实现本地向量生成
+- [x] 13.1 集成本地嵌入服务
+  - 创建 `app/src-tauri/src/desktop/embedding.rs`
+  - 实现 Ollama 嵌入 API 调用
+  - 支持检查 Ollama 可用性、列出模型、生成嵌入
+  - 创建 TypeScript 绑定 `app/src/lib/embedding.ts`
   - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
 ---
 
 ### Task 14: AI 记忆系统增强（可选）
 
-- [ ]* 14.1 实现 mem0 记忆服务
+- [x] 14.1 实现 mem0 记忆服务
   - 创建 `server/aiServer/memory.ts`
-  - 实现三层记忆架构
+  - 实现三层记忆架构 (短期/长期/工作记忆)
+  - 实现用户偏好提取和存储
+  - 创建 tRPC 路由 `server/routerTrpc/memory.ts`
+  - 添加 Prisma 模型 (memory, userPreference)
   - _Requirements: 10.1, 10.2, 10.3, 10.4_
 
 ---

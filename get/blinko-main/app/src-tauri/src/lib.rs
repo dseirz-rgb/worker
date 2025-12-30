@@ -54,6 +54,7 @@ pub fn run() {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         builder
+            .manage(EmbeddingState::default())
             .invoke_handler(tauri::generate_handler![
                 toggle_editor_window,
                 register_hotkey,
@@ -81,7 +82,15 @@ pub fn run() {
                 get_current_activity_cmd,
                 start_activity_monitoring,
                 stop_activity_monitoring,
-                is_activity_monitoring
+                is_activity_monitoring,
+                // Echo 扩展: 本地嵌入
+                get_embedding_config,
+                set_embedding_config,
+                check_ollama_available,
+                list_embedding_models,
+                generate_embedding,
+                generate_embeddings_batch,
+                cosine_similarity
             ])
             .setup(|app| {
                 #[cfg(not(any(target_os = "android", target_os = "ios")))]

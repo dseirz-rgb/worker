@@ -31,6 +31,16 @@ export class BaseStore implements Store {
       icon: 'solar:bill-check-linear',
     },
     {
+      title: 'translation',
+      href: '/translation',
+      icon: 'hugeicons:translate',
+    },
+    {
+      title: 'activity',
+      href: '/activity',
+      icon: 'hugeicons:activity-01',
+    },
+    {
       title: 'analytics',
       href: '/analytics',
       hiddenMobile: true,
@@ -151,6 +161,10 @@ export class BaseStore implements Store {
         this.currentTitle = 'daily-review';
       } else if (location.pathname == '/detail') {
         this.currentTitle = 'detail';
+      } else if (location.pathname == '/translation') {
+        this.currentTitle = 'translation';
+      } else if (location.pathname == '/activity') {
+        this.currentTitle = 'activity';
       } else if (searchParams.get('path') == 'all') {
         this.currentTitle = t('total');
       } else if (searchParams.get('path') == 'notes') {

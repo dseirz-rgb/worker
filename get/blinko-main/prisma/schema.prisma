@@ -40,6 +40,8 @@ model accounts {
   translationHistories translationHistory[]
   domains       domain[]
   activityRecords activityRecord[]
+  memories      memory[]
+  preferences   userPreference[]
 }
 
 model attachments {
@@ -391,4 +393,47 @@ model activityRecord {
   @@index([accountId])
   @@index([startTime])
   @@index([domainId])
+}
+
+
+// Echo 扩展: AI 记忆系统 (mem0)
+model memory {
+  id          Int      @id @default(autoincrement())
+  type        String   @db.VarChar(50)    // short_term, long_term, working
+  content     String   @db.Text           // 记忆内容
+  embedding   Json?    @db.Json           // 向量嵌入 (可选)
+  importance  Float    @default(0.5)      // 重要性分数 0-1
+  accessCount Int      @default(0)        // 访问次数
+  lastAccess  DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt   DateTime?@db.Timestamptz(6) // 过期时间 (短期记忆)
+  metadata    Json?    @db.Json           // 额外元数据
+  accountId   Int
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  account     accounts @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([type])
+  @@index([importance])
+  @@index([lastAccess])
+}
+
+// Echo 扩展: 用户偏好 (从记忆中提取的长期偏好)
+model userPreference {
+  id          Int      @id @default(autoincrement())
+  category    String   @db.VarChar(100)   // 偏好类别: language, style, topic, etc.
+  key         String   @db.VarChar(255)   // 偏好键
+  value       String   @db.Text           // 偏好值
+  confidence  Float    @default(0.5)      // 置信度 0-1
+  source      String?  @db.VarChar(50)    // 来源: explicit, inferred
+  accountId   Int
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  account     accounts @relation(fields: [accountId], references: [id])
+
+  @@unique([accountId, category, key])
+  @@index([accountId])
+  @@index([category])
 }

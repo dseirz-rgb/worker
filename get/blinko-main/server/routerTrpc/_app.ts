@@ -26,6 +26,7 @@ import { translationRouter } from './translation';
 import { domainRouter } from './domain';
 import { activityRouter } from './activity';
 import { dailyReportRouter } from './dailyReport';
+import { memoryRouter } from './memory';
 export const appRouter = router({
   ai: aiRouter,
   notes: noteRouter,
@@ -48,6 +49,7 @@ export const appRouter = router({
   domain: domainRouter,
   activity: activityRouter,
   dailyReport: dailyReportRouter,
+  memory: memoryRouter,
 });
 
 export const createCaller = t.createCallerFactory(appRouter);
