@@ -1,0 +1,88 @@
+# Echo Janitor 分类配置
+# 基于 LlamaFS，使用 Groq (云端) + Ollama (图片) 混合方案
+
+# Groq 配置 (免费云端 Llama3 API)
+# 获取 API Key: https://console.groq.com/
+groq:
+  model: "llama-3.1-70b-versatile"
+
+# Ollama 配置 (本地图片理解)
+ollama:
+  host: "http://localhost:11434"
+  model: "moondream"  # 图片理解模型
+
+# 监控目录
+inbox_dirs:
+  - "~/Downloads/Inbox"
+  - "~/Desktop/Temp"
+
+# 输出根目录
+output_base: "~/Echo"
+
+# 置信度阈值 (低于此值的文件进入 99_Inbox)
+confidence_threshold: 0.6
+
+# 分类体系
+categories:
+  01_Investment:
+    path: "01_Investment"
+    keywords:
+      - 财报
+      - 股票
+      - 投资
+      - K线
+      - 盈透
+      - PDD
+      - revenue
+      - growth
+      - earnings
+      - quarterly report
+
+  02_Development:
+    path: "02_Development"
+    keywords:
+      - 代码
+      - 架构
+      - API
+      - Docker
+      - Python
+      - 需求
+      - bug
+      - 技术文档
+
+  03_GameArt:
+    path: "03_GameArt"
+    keywords:
+      - 游戏
+      - 美术
+      - 贴图
+      - 材质
+      - 角色
+      - 场景
+      - Cyberpunk
+      - concept art
+
+  04_Management:
+    path: "04_Management"
+    keywords:
+      - 周报
+      - 汇报
+      - 计划
+      - 绩效
+      - HC
+      - 团队
+      - meeting
+
+  05_Personal:
+    path: "05_Personal"
+    keywords:
+      - 发票
+      - 证件
+      - 个人
+      - 家庭
+      - 体检
+      - invoice
+
+  99_Inbox:
+    path: "99_Inbox"
+    keywords: []

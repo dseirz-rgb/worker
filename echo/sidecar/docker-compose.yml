@@ -1,0 +1,27 @@
+# Echo SeekDB 服务编排
+# 只启动 SeekDB 数据库，API 服务本地运行
+
+version: '3.8'
+
+services:
+  # SeekDB 数据库 (OceanBase AI-Native Search Database)
+  seekdb:
+    image: oceanbase/seekdb:latest
+    container_name: echo-seekdb
+    ports:
+      - "2881:2881"  # MySQL 兼容端口
+    environment:
+      - MYSQL_ROOT_PASSWORD=${SEEKDB_PASSWORD:-}
+    volumes:
+      - seekdb_data:/home/admin/oceanbase/store
+    healthcheck:
+      test: ["CMD", "mysql", "-h", "127.0.0.1", "-P", "2881", "-u", "root", "-e", "SELECT 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+volumes:
+  seekdb_data:
+    driver: local

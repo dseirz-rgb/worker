@@ -1,0 +1,23 @@
+# Echo SeekDB API 依赖
+
+# Web 框架
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+
+# 数据库
+mysql-connector-python==8.3.0
+
+# 数据验证
+pydantic==2.5.3
+
+# HTTP 客户端 (用于 Supabase 同步)
+httpx==0.26.0
+
+# 文件处理
+python-multipart==0.0.6
+
+# 视频处理 (可选)
+# openai-whisper==20231117
+
+# PPT 处理 (可选)
+# python-pptx==0.6.23

@@ -1,0 +1,80 @@
+version: '3.8'
+
+# Echo Janitor - AI 文件整理服务
+# 使用方法: docker-compose -f docker-compose.janitor.yml up -d
+
+services:
+  # Ollama 本地 LLM 服务
+  ollama:
+    image: ollama/ollama:latest
+    container_name: echo-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    # GPU 支持 (如果有 NVIDIA GPU)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - echo-network
+    # 启动后自动拉取模型
+    entrypoint: >
+      sh -c "ollama serve &
+             sleep 5 &&
+             ollama pull ${OLLAMA_MODEL:-qwen2.5:7b} &&
+             ollama pull ${LLAVA_MODEL:-llava:7b} &&
+             wait"
+
+  # Echo Janitor 文件整理服务
+  janitor:
+    build:
+      context: ./janitor
+      dockerfile: Dockerfile
+    container_name: echo-janitor
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    volumes:
+      # 监控目录 (只读)
+      - ${JANITOR_INBOX:-~/Downloads/Inbox}:/app/inbox:ro
+      # 输出目录
+      - ${JANITOR_OUTPUT:-~/Echo}:/app/output
+      # 配置目录
+      - ./janitor/config:/app/config
+      # 日志目录
+      - ./janitor/logs:/app/logs
+    environment:
+      # Ollama 配置
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      - LLAVA_MODEL=${LLAVA_MODEL:-llava:7b}
+      # Janitor 配置
+      - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.6}
+      - ENABLE_MULTIMODAL=${ENABLE_MULTIMODAL:-true}
+      - ENABLE_OCR=${ENABLE_OCR:-true}
+      # SeekDB 集成 (可选)
+      - SEEKDB_API=${SEEKDB_API:-}
+    ports:
+      - "${JANITOR_PORT:-8081}:8081"
+    networks:
+      - echo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ollama_data:
+    name: echo-ollama-data
+
+networks:
+  echo-network:
+    name: echo-network
+    external: true
