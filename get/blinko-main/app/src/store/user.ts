@@ -180,7 +180,17 @@ export class UserStore implements Store {
 
   async initializeSettings(setTheme: (theme: string) => void, i18n: any) {
     const base = RootStore.Get(BaseStore);
-    const config = await this.blinko.config.call()
+    
+    // 如果用户未登录，只初始化本地设置，不调用 API
+    let config = null;
+    if (this.isLogin) {
+      try {
+        config = await this.blinko.config.call()
+      } catch (error) {
+        console.warn('Failed to load config, using local settings:', error);
+      }
+    }
+    
     const handleFeatureRoute = (
       featureKey: 'hub' | 'ai',
       storageKey: string,

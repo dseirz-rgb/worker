@@ -53,6 +53,30 @@ export class BaseStore implements Store {
       hiddenMobile: true,
     },
     {
+      title: 'files',
+      href: '/files',
+      icon: 'solar:folder-with-files-bold-duotone',
+      hiddenMobile: true,
+    },
+    {
+      title: 'khoj',
+      href: '/khoj',
+      icon: 'mdi:robot-outline',
+      hiddenMobile: true,
+    },
+    {
+      title: 'agents',
+      href: '/agents',
+      icon: 'mdi:robot-happy-outline',
+      hiddenMobile: true,
+    },
+    {
+      title: 'automations',
+      href: '/automations',
+      icon: 'solar:clock-circle-bold-duotone',
+      hiddenMobile: true,
+    },
+    {
       title: 'archived',
       href: '/?path=archived',
       icon: 'solar:box-broken',
@@ -175,6 +199,14 @@ export class BaseStore implements Store {
         this.currentTitle = 'archived';
       } else if (location.pathname == '/resources') {
         this.currentTitle = 'resources';
+      } else if (location.pathname == '/files') {
+        this.currentTitle = 'files';
+      } else if (location.pathname == '/khoj') {
+        this.currentTitle = 'khoj';
+      } else if (location.pathname == '/agents') {
+        this.currentTitle = 'agents';
+      } else if (location.pathname == '/automations') {
+        this.currentTitle = 'automations';
       } else if (searchParams.get('path') == 'trash') {
         this.currentTitle = 'trash';
       } else if (location.pathname == '/plugin') {

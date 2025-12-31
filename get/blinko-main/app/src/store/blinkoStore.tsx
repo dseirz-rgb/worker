@@ -534,34 +534,49 @@ export class BlinkoStore implements Store {
   }
 
   firstLoad() {
-    this.tagList.call()
-    this.config.call()
-    this.dailyReviewNoteList.call()
-    this.task.call()
+    // 使用 Promise.allSettled 确保单个 API 失败不会影响其他调用
+    Promise.allSettled([
+      this.tagList.call(),
+      this.config.call(),
+      this.dailyReviewNoteList.call(),
+      this.task.call()
+    ]).then(results => {
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const apiNames = ['tagList', 'config', 'dailyReviewNoteList', 'task'];
+          console.warn(`firstLoad: ${apiNames[index]} failed:`, result.reason);
+        }
+      });
+    });
   }
 
 
   async refreshData() {
-    this.tagList.call()
-    
-    const currentPath = new URLSearchParams(window.location.search).get('path');
-    
-    if (currentPath === 'notes') {
-      this.noteOnlyList.resetAndCall({});
-    } else if (currentPath === 'todo') {
-      this.todoList.resetAndCall({});
-    } else if (currentPath === 'archived') {
-      this.archivedList.resetAndCall({});
-    } else if (currentPath === 'trash') {
-      this.trashList.resetAndCall({});
-    } else if (currentPath === 'all') {
-      this.noteList.resetAndCall({});
-    } else {
-      this.blinkoList.resetAndCall({});
+    // 使用 try-catch 确保刷新失败不会崩溃
+    try {
+      this.tagList.call();
+      
+      const currentPath = new URLSearchParams(window.location.search).get('path');
+      
+      if (currentPath === 'notes') {
+        this.noteOnlyList.resetAndCall({});
+      } else if (currentPath === 'todo') {
+        this.todoList.resetAndCall({});
+      } else if (currentPath === 'archived') {
+        this.archivedList.resetAndCall({});
+      } else if (currentPath === 'trash') {
+        this.trashList.resetAndCall({});
+      } else if (currentPath === 'all') {
+        this.noteList.resetAndCall({});
+      } else {
+        this.blinkoList.resetAndCall({});
+      }
+      
+      this.config.call();
+      this.dailyReviewNoteList.call();
+    } catch (error) {
+      console.warn('refreshData error:', error);
     }
-    
-    this.config.call()
-    this.dailyReviewNoteList.call()
   }
 
   private clear() {

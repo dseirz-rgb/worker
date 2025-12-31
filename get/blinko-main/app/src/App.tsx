@@ -12,6 +12,7 @@ import { AppProvider } from '@/store/module/AppProvider';
 import { BlinkoMultiSelectPop } from '@/components/BlinkoMultiSelectPop';
 import { BlinkoMusicPlayer } from '@/components/BlinkoMusicPlayer';
 import { LoadingPage } from '@/components/Common/LoadingPage';
+import { ErrorBoundary } from '@/components/Common/ErrorBoundary';
 import { PluginManagerStore } from '@/store/plugin/pluginManagerStore';
 import { RootStore } from '@/store';
 import { UserStore } from '@/store/user';
@@ -45,6 +46,11 @@ const ShareDetailPage = lazy(() => import('./pages/share/[id]'));
 const AiSharePage = lazy(() => import('./pages/ai-share'));
 const TranslationPage = lazy(() => import('./pages/translation'));
 const ActivityPage = lazy(() => import('./pages/activity'));
+const RoleSelectPage = lazy(() => import('./pages/role-select'));
+const FilesPage = lazy(() => import('./pages/files'));
+const KhojPage = lazy(() => import('./pages/khoj'));
+const AgentsPage = lazy(() => import('./pages/agents'));
+const AutomationsPage = lazy(() => import('./pages/automations'));
 
 const HomeRedirect = () => {
   const navigate = useNavigate();
@@ -52,19 +58,27 @@ const HomeRedirect = () => {
   const blinko = RootStore.Get(BlinkoStore);
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     const redirectToDefaultPage = async () => {
-      await blinko.config.call();
-      const defaultHomePage = blinko.config.value?.defaultHomePage;
-      const currentPath = searchParams.get('path');
-      const isDirectNavigation = location.key === 'default';
-      if (currentPath || !defaultHomePage || defaultHomePage === 'blinko' || !isDirectNavigation) {
+      try {
+        // 尝试加载配置，但失败不阻塞页面渲染
+        await blinko.config.call();
+        const defaultHomePage = blinko.config.value?.defaultHomePage;
+        const currentPath = searchParams.get('path');
+        const isDirectNavigation = location.key === 'default';
+        if (currentPath || !defaultHomePage || defaultHomePage === 'blinko' || !isDirectNavigation) {
+          setLoading(false);
+          return;
+        }
+        
+        navigate(`/?path=${defaultHomePage}`, { replace: true });
+      } catch (err) {
+        console.error('HomeRedirect error:', err);
+        // 即使配置加载失败，也继续显示首页
         setLoading(false);
-        return;
       }
-      
-      navigate(`/?path=${defaultHomePage}`, { replace: true });
     };
     
     redirectToDefaultPage();
@@ -89,7 +103,7 @@ const ProtectedRoute = ({ children }) => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const publicRoutes = ['/signin', '/signup', '/share', '/_offline', '/oauth-callback', '/ai-share', '/oauth-callback'];
+      const publicRoutes = ['/signin', '/signup', '/share', '/_offline', '/oauth-callback', '/ai-share'];
       const isPublicRoute = publicRoutes.some(route =>
         location.pathname === route || location.pathname.startsWith('/share/') || location.pathname.startsWith('/ai-share/')
       );
@@ -131,12 +145,12 @@ const getWindowType = () => {
 function AppRoutes() {
   const navigate = useNavigate();
   const windowType = getWindowType();
+  const desktop = isDesktop();
 
   // Initialize Quick AI hotkey handler inside Router context (only for main window on desktop)
-  if (windowType === 'main' && isDesktop()) {
-    useQuickaiHotkey();
-    useQuicknoteHotkey(true);
-  }
+  // Note: Hooks are always called, but they handle platform checks internally
+  useQuickaiHotkey();
+  useQuicknoteHotkey(windowType === 'main' && desktop);
 
   // Listen for navigation commands from Tauri (only for current window type)
   useEffect(() => {
@@ -249,6 +263,11 @@ function AppRoutes() {
             <Route path="/ai-share/:id" element={<AiSharePage />} />
             <Route path="/translation" element={<ProtectedRoute><TranslationPage /></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute><ActivityPage /></ProtectedRoute>} />
+            <Route path="/files" element={<ProtectedRoute><FilesPage /></ProtectedRoute>} />
+            <Route path="/khoj" element={<ProtectedRoute><KhojPage /></ProtectedRoute>} />
+            <Route path="/agents" element={<ProtectedRoute><AgentsPage /></ProtectedRoute>} />
+            <Route path="/automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
+            <Route path="/role-select" element={<RoleSelectPage />} />
             <Route path="/quicknote" element={<QuickNotePage />} />
             <Route path="/quickai" element={<QuickAIPage />} />
             <Route path="/quicktool" element={<QuickToolPage />} />
@@ -265,17 +284,15 @@ function App() {
   // Initialize Android shortcuts handler
   useAndroidShortcuts();
 
-  // Initialize hotkey setup for desktop app only
-  if (isDesktop()) {
-    useInitialHotkeySetup();
-  }
+  // Initialize hotkey setup for desktop app only (hook handles the platform check internally)
+  useInitialHotkeySetup();
 
   useEffect(() => {
     RootStore.Get(PluginManagerStore).initInstalledPlugins();
   }, []);
 
   return (
-    <>
+    <ErrorBoundary>
       <Inspector
         keys={['control', 'alt', 'x']}
         onClickElement={({ codeInfo }: InspectParams) => {
@@ -288,17 +305,19 @@ function App() {
         <HeroUIProvider>
           <ThemeProvider attribute="class" enableSystem={false}>
             <AppProvider />
-            <CommonLayout>
-              <div className="app-content">
-                <AppRoutes />
-                <BlinkoMultiSelectPop />
-              </div>
-            </CommonLayout>
+            <ErrorBoundary>
+              <CommonLayout>
+                <div className="app-content">
+                  <AppRoutes />
+                  <BlinkoMultiSelectPop />
+                </div>
+              </CommonLayout>
+            </ErrorBoundary>
           </ThemeProvider>
         </HeroUIProvider>
         <BlinkoMusicPlayer />
       </BrowserRouter>
-    </>
+    </ErrorBoundary>
   );
 }
 
