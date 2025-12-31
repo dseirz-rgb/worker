@@ -27,6 +27,11 @@ import { domainRouter } from './domain';
 import { activityRouter } from './activity';
 import { dailyReportRouter } from './dailyReport';
 import { memoryRouter } from './memory';
+import { paperlessRouter } from './paperless';
+import { janitorRouter } from './janitor';
+import { ingestRouter } from './ingest';
+import { khojRouter } from './khoj';
+import { gatewayRouter } from './gateway';
 export const appRouter = router({
   ai: aiRouter,
   notes: noteRouter,
@@ -50,6 +55,11 @@ export const appRouter = router({
   activity: activityRouter,
   dailyReport: dailyReportRouter,
   memory: memoryRouter,
+  paperless: paperlessRouter,
+  janitor: janitorRouter,
+  ingest: ingestRouter,
+  khoj: khojRouter,
+  gateway: gatewayRouter,
 });
 
 export const createCaller = t.createCallerFactory(appRouter);

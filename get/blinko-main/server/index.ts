@@ -15,6 +15,9 @@ import { RecommandJob } from './jobs/recommandJob';
 import { AIScheduledTaskJob } from './jobs/aiScheduledTaskJob';
 import { DailyReportJob } from './jobs/dailyReportJob';
 
+// 统一 API 网关健康监控
+import { healthMonitor } from './lib/healthMonitor';
+
 // tRPC related imports
 import { createContext } from './context';
 import { appRouter } from './routerTrpc/_app';
@@ -49,12 +52,14 @@ process.on('unhandledRejection', (reason, promise) => {
 
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
+  healthMonitor.stop();
   await stopPgBoss();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
+  healthMonitor.stop();
   await stopPgBoss();
   process.exit(0);
 });
@@ -274,6 +279,10 @@ async function bootstrap() {
 
     // Initialize scheduled jobs
     await initializeJobs();
+
+    // 启动 API 网关健康监控
+    healthMonitor.start();
+    console.log('🏥 Health monitor started');
 
     // Start or update server
     if (!server) {
