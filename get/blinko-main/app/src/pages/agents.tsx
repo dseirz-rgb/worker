@@ -1,7 +1,8 @@
 /**
- * AI Agents 管理页面
+ * AI Agents 管理页面 - AI 服务统一迁移
  * 
- * 提供 Khoj Agent 的列表展示、创建、编辑和删除功能
+ * 提供 Agent 的列表展示、创建、编辑和删除功能
+ * 使用新的 Mastra Agent 系统
  */
 
 import { observer } from 'mobx-react-lite';
@@ -14,49 +15,426 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
+  Card,
+  CardBody,
+  CardHeader,
+  Input,
+  Textarea,
+  Select,
+  SelectItem,
+  Chip,
+  Switch,
 } from '@heroui/react';
 import { Icon } from '@/components/Common/Iconify/icons';
-import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/trpc';
-import { AgentCard, AgentForm } from '@/components/khoj';
-import type { KhojAgent, AgentFormData } from '@/components/khoj';
 import { ScrollArea } from '@/components/Common/ScrollArea';
 import { RootStore } from '@/store';
 import { ToastPlugin } from '@/store/module/Toast/Toast';
 
-/**
- * Agents 页面组件
- */
+// Agent 类型
+interface Agent {
+  id: number;
+  slug: string;
+  name: string;
+  persona: string | null;
+  systemPrompt: string;
+  tools: string[];
+  modelId: number | null;
+  privacy: 'public' | 'private';
+  accountId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 可用工具类型
+interface AvailableTool {
+  name: string;
+  description: string;
+  category: string;
+  permissions?: string[];
+}
+
+// Agent 卡片组件
+const AgentCard = ({
+  agent,
+  isSelected,
+  onSelect,
+  onEdit,
+  onDelete,
+  onChat,
+}: {
+  agent: Agent;
+  isSelected: boolean;
+  onSelect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onChat: () => void;
+}) => {
+  return (
+    <Card
+      isPressable
+      onPress={onSelect}
+      className={`transition-all ${isSelected ? 'ring-2 ring-primary' : ''}`}
+    >
+      <CardBody className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+              <Icon icon="mdi:robot-outline" className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="font-semibold">{agent.name}</h3>
+              <div className="flex items-center gap-2 mt-1">
+                <Chip
+                  size="sm"
+                  variant="flat"
+                  color={agent.privacy === 'public' ? 'success' : 'default'}
+                >
+                  {agent.privacy === 'public' ? '公开' : '私有'}
+                </Chip>
+                {agent.tools.length > 0 && (
+                  <Chip size="sm" variant="flat">
+                    {agent.tools.length} 工具
+                  </Chip>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {agent.persona && (
+          <p className="text-sm text-foreground/60 line-clamp-2 mb-3">
+            {agent.persona}
+          </p>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            color="primary"
+            variant="flat"
+            onPress={(e) => {
+              e.stopPropagation();
+              onChat();
+            }}
+            startContent={<Icon icon="solar:chat-round-dots-linear" className="w-4 h-4" />}
+          >
+            对话
+          </Button>
+          <Button
+            size="sm"
+            variant="flat"
+            isIconOnly
+            onPress={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+          >
+            <Icon icon="solar:pen-linear" className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="flat"
+            color="danger"
+            isIconOnly
+            onPress={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            <Icon icon="solar:trash-bin-trash-linear" className="w-4 h-4" />
+          </Button>
+        </div>
+      </CardBody>
+    </Card>
+  );
+};
+
+// Agent 表单组件
+const AgentFormModal = ({
+  isOpen,
+  onClose,
+  agent,
+  availableTools,
+  onSubmit,
+  isSubmitting,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  agent?: Agent;
+  availableTools: AvailableTool[];
+  onSubmit: (data: any) => void;
+  isSubmitting: boolean;
+}) => {
+  const [name, setName] = useState(agent?.name || '');
+  const [persona, setPersona] = useState(agent?.persona || '');
+  const [systemPrompt, setSystemPrompt] = useState(agent?.systemPrompt || '');
+  const [selectedTools, setSelectedTools] = useState<string[]>(agent?.tools || []);
+  const [privacy, setPrivacy] = useState<'public' | 'private'>(agent?.privacy || 'private');
+
+  useEffect(() => {
+    if (agent) {
+      setName(agent.name);
+      setPersona(agent.persona || '');
+      setSystemPrompt(agent.systemPrompt);
+      setSelectedTools(agent.tools);
+      setPrivacy(agent.privacy);
+    } else {
+      setName('');
+      setPersona('');
+      setSystemPrompt('');
+      setSelectedTools([]);
+      setPrivacy('private');
+    }
+  }, [agent, isOpen]);
+
+  const handleSubmit = () => {
+    onSubmit({
+      name,
+      persona: persona || undefined,
+      systemPrompt,
+      tools: selectedTools,
+      privacy,
+    });
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="2xl">
+      <ModalContent>
+        <ModalHeader>
+          {agent ? '编辑 Agent' : '创建 Agent'}
+        </ModalHeader>
+        <ModalBody>
+          <div className="space-y-4">
+            <Input
+              label="名称"
+              placeholder="例如：研究助手"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              isRequired
+            />
+
+            <Textarea
+              label="人格描述"
+              placeholder="描述这个 Agent 的性格和特点..."
+              value={persona}
+              onChange={(e) => setPersona(e.target.value)}
+              minRows={2}
+            />
+
+            <Textarea
+              label="系统提示"
+              placeholder="定义 Agent 的行为和能力..."
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              minRows={4}
+              isRequired
+            />
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">可用工具</label>
+              <div className="flex flex-wrap gap-2">
+                {availableTools.map((tool) => (
+                  <Chip
+                    key={tool.name}
+                    variant={selectedTools.includes(tool.name) ? 'solid' : 'flat'}
+                    color={selectedTools.includes(tool.name) ? 'primary' : 'default'}
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setSelectedTools((prev) =>
+                        prev.includes(tool.name)
+                          ? prev.filter((t) => t !== tool.name)
+                          : [...prev, tool.name]
+                      );
+                    }}
+                  >
+                    {tool.name}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">公开 Agent</p>
+                <p className="text-xs text-foreground/50">公开后其他用户也可以使用</p>
+              </div>
+              <Switch
+                isSelected={privacy === 'public'}
+                onValueChange={(v) => setPrivacy(v ? 'public' : 'private')}
+              />
+            </div>
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="flat" onPress={onClose}>
+            取消
+          </Button>
+          <Button
+            color="primary"
+            onPress={handleSubmit}
+            isLoading={isSubmitting}
+            isDisabled={!name.trim() || !systemPrompt.trim()}
+          >
+            {agent ? '保存' : '创建'}
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  );
+};
+
+// 对话 Modal
+const ChatModal = ({
+  isOpen,
+  onClose,
+  agent,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  agent: Agent | null;
+}) => {
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setMessages([]);
+      setInput('');
+    }
+  }, [isOpen]);
+
+  const handleSend = async () => {
+    if (!input.trim() || !agent || isLoading) return;
+
+    const userMessage = { role: 'user' as const, content: input };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      const response = await api.agent.chatWithAgent.mutate({
+        agentId: agent.id,
+        messages: [...messages, userMessage],
+      });
+
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: response.text },
+      ]);
+    } catch (err) {
+      console.error('Chat failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="3xl">
+      <ModalContent>
+        <ModalHeader className="flex items-center gap-2">
+          <Icon icon="mdi:robot-outline" className="w-5 h-5" />
+          与 {agent?.name} 对话
+        </ModalHeader>
+        <ModalBody>
+          <div className="h-96 flex flex-col">
+            <ScrollArea onBottom={() => {}} className="flex-1 p-4 bg-default-50 rounded-lg">
+              {messages.length === 0 ? (
+                <div className="text-center text-foreground/50 py-8">
+                  开始与 {agent?.name} 对话吧
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {messages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] p-3 rounded-lg ${
+                          msg.role === 'user'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-default-100'
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+                  {isLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-default-100 p-3 rounded-lg">
+                        <Spinner size="sm" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </ScrollArea>
+            <div className="flex gap-2 mt-4">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="输入消息..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                isDisabled={isLoading}
+              />
+              <Button
+                color="primary"
+                onPress={handleSend}
+                isLoading={isLoading}
+                isDisabled={!input.trim()}
+              >
+                发送
+              </Button>
+            </div>
+          </div>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
+  );
+};
+
+// 主组件
 const AgentsPage = observer(() => {
   const toast = RootStore.Get(ToastPlugin);
 
   // 状态
-  const [agents, setAgents] = useState<KhojAgent[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [availableTools, setAvailableTools] = useState<AvailableTool[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingAgent, setEditingAgent] = useState<KhojAgent | undefined>();
-  const [deletingAgent, setDeletingAgent] = useState<KhojAgent | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [editingAgent, setEditingAgent] = useState<Agent | undefined>();
+  const [deletingAgent, setDeletingAgent] = useState<Agent | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [chatAgent, setChatAgent] = useState<Agent | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // 加载 Agent 列表
   const loadAgents = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
     try {
-      const result = await api.khoj.getAgents.query();
-      setAgents(result || []);
+      const [agentsResult, toolsResult] = await Promise.all([
+        api.agent.getAgents.query(),
+        api.agent.getAvailableTools.query(),
+      ]);
+      setAgents(agentsResult as Agent[]);
+      setAvailableTools(toolsResult as AvailableTool[]);
     } catch (err) {
-      setError(err as Error);
+      toast.error('加载失败');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
-  // 初始化加载
   useEffect(() => {
     loadAgents();
   }, [loadAgents]);
@@ -68,13 +446,13 @@ const AgentsPage = observer(() => {
   }, []);
 
   // 打开编辑表单
-  const handleEdit = useCallback((agent: KhojAgent) => {
+  const handleEdit = useCallback((agent: Agent) => {
     setEditingAgent(agent);
     setIsFormOpen(true);
   }, []);
 
   // 确认删除
-  const handleDeleteConfirm = useCallback((agent: KhojAgent) => {
+  const handleDeleteConfirm = useCallback((agent: Agent) => {
     setDeletingAgent(agent);
   }, []);
 
@@ -84,7 +462,7 @@ const AgentsPage = observer(() => {
     
     setIsDeleting(true);
     try {
-      await api.khoj.deleteAgent.mutate({ slug: deletingAgent.slug });
+      await api.agent.deleteAgent.mutate({ id: deletingAgent.id });
       toast.success('Agent 已删除');
       setDeletingAgent(null);
       loadAgents();
@@ -96,27 +474,17 @@ const AgentsPage = observer(() => {
   }, [deletingAgent, loadAgents, toast]);
 
   // 提交表单
-  const handleSubmit = useCallback(async (data: AgentFormData) => {
+  const handleSubmit = useCallback(async (data: any) => {
     setIsSubmitting(true);
     try {
       if (editingAgent) {
-        // 更新
-        await api.khoj.updateAgent.mutate({
-          slug: editingAgent.slug,
-          name: data.name,
-          personality: data.personality,
-          tools: data.tools,
-          public: data.public,
+        await api.agent.updateAgent.mutate({
+          id: editingAgent.id,
+          ...data,
         });
         toast.success('Agent 已更新');
       } else {
-        // 创建
-        await api.khoj.createAgent.mutate({
-          name: data.name,
-          personality: data.personality,
-          tools: data.tools,
-          public: data.public,
-        });
+        await api.agent.createAgent.mutate(data);
         toast.success('Agent 已创建');
       }
       setIsFormOpen(false);
@@ -128,67 +496,6 @@ const AgentsPage = observer(() => {
       setIsSubmitting(false);
     }
   }, [editingAgent, loadAgents, toast]);
-
-  // 选择 Agent
-  const handleSelect = useCallback((agent: KhojAgent) => {
-    setSelectedAgent(agent.slug);
-  }, []);
-
-  // 关闭表单
-  const handleFormCancel = useCallback(() => {
-    setIsFormOpen(false);
-    setEditingAgent(undefined);
-  }, []);
-
-  // 错误状态
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center max-w-md"
-        >
-          <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-danger/10 flex items-center justify-center">
-            <Icon icon="mdi:robot-dead-outline" className="w-12 h-12 text-danger/70" />
-          </div>
-          <h2 className="text-2xl font-bold mb-3">无法连接 Khoj 服务</h2>
-          <p className="text-foreground/60 mb-6">
-            请确保 Khoj 服务已启动并正确配置。
-          </p>
-          
-          {/* 启动指引 */}
-          <div className="w-full bg-default-100 dark:bg-default-100/50 rounded-xl p-4 text-left mb-6">
-            <p className="text-sm font-medium mb-3 flex items-center gap-2">
-              <Icon icon="solar:info-circle-linear" className="w-4 h-4 text-primary" />
-              启动 Khoj 服务
-            </p>
-            <div className="bg-default-200 dark:bg-default-200/50 rounded-lg p-3 font-mono text-xs overflow-x-auto">
-              <code>docker-compose -f docker-compose.khoj.yml up -d</code>
-            </div>
-          </div>
-          
-          <div className="flex gap-3 justify-center">
-            <Button
-              color="primary"
-              onPress={loadAgents}
-              startContent={<Icon icon="solar:refresh-linear" className="w-4 h-4" />}
-            >
-              重试连接
-            </Button>
-            <Link to="/settings">
-              <Button
-                variant="flat"
-                startContent={<Icon icon="hugeicons:settings-01" className="w-4 h-4" />}
-              >
-                前往设置
-              </Button>
-            </Link>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -204,9 +511,7 @@ const AgentsPage = observer(() => {
           </div>
         </div>
 
-        {/* 右侧操作区 */}
         <div className="flex items-center gap-2">
-          {/* 刷新按钮 */}
           <Button
             isIconOnly
             variant="light"
@@ -216,8 +521,6 @@ const AgentsPage = observer(() => {
           >
             <Icon icon="solar:refresh-linear" className="w-5 h-5" />
           </Button>
-
-          {/* 创建按钮 */}
           <Button
             color="primary"
             size="sm"
@@ -231,14 +534,12 @@ const AgentsPage = observer(() => {
 
       {/* Content */}
       <ScrollArea onBottom={() => {}} className="flex-1 p-4">
-        {/* 加载状态 */}
         {isLoading && agents.length === 0 && (
           <div className="flex items-center justify-center py-12">
             <Spinner size="lg" color="primary" />
           </div>
         )}
 
-        {/* Agent 网格 */}
         {!isLoading && agents.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -247,24 +548,24 @@ const AgentsPage = observer(() => {
           >
             {agents.map((agent, index) => (
               <motion.div
-                key={agent.slug}
+                key={agent.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
               >
                 <AgentCard
                   agent={agent}
-                  isSelected={selectedAgent === agent.slug}
-                  onSelect={() => handleSelect(agent)}
+                  isSelected={selectedAgent?.id === agent.id}
+                  onSelect={() => setSelectedAgent(agent)}
                   onEdit={() => handleEdit(agent)}
                   onDelete={() => handleDeleteConfirm(agent)}
+                  onChat={() => setChatAgent(agent)}
                 />
               </motion.div>
             ))}
           </motion.div>
         )}
 
-        {/* 空状态引导 */}
         {!isLoading && agents.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -290,16 +591,27 @@ const AgentsPage = observer(() => {
         )}
       </ScrollArea>
 
-      {/* 创建/编辑表单 Modal */}
-      <AgentForm
-        agent={editingAgent}
+      {/* 创建/编辑表单 */}
+      <AgentFormModal
         isOpen={isFormOpen}
+        onClose={() => {
+          setIsFormOpen(false);
+          setEditingAgent(undefined);
+        }}
+        agent={editingAgent}
+        availableTools={availableTools}
         onSubmit={handleSubmit}
-        onCancel={handleFormCancel}
         isSubmitting={isSubmitting}
       />
 
-      {/* 删除确认 Modal */}
+      {/* 对话 Modal */}
+      <ChatModal
+        isOpen={!!chatAgent}
+        onClose={() => setChatAgent(null)}
+        agent={chatAgent}
+      />
+
+      {/* 删除确认 */}
       <Modal
         isOpen={!!deletingAgent}
         onClose={() => setDeletingAgent(null)}
@@ -315,7 +627,7 @@ const AgentsPage = observer(() => {
               确定要删除 Agent <strong>"{deletingAgent?.name}"</strong> 吗？
             </p>
             <p className="text-sm text-foreground/60 mt-2">
-              此操作无法撤销，与该 Agent 相关的对话历史可能会受到影响。
+              此操作无法撤销。
             </p>
           </ModalBody>
           <ModalFooter>
@@ -330,7 +642,6 @@ const AgentsPage = observer(() => {
               color="danger"
               onPress={handleDelete}
               isLoading={isDeleting}
-              startContent={!isDeleting && <Icon icon="mdi:delete-outline" className="w-4 h-4" />}
             >
               删除
             </Button>

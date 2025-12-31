@@ -32,6 +32,11 @@ import { janitorRouter } from './janitor';
 import { ingestRouter } from './ingest';
 import { khojRouter } from './khoj';
 import { gatewayRouter } from './gateway';
+import { researchRouter } from './research';
+import { agentRouter } from './agent';
+import { automationRouter } from './automation';
+import { featureFlagRouter } from './featureFlag';
+
 export const appRouter = router({
   ai: aiRouter,
   notes: noteRouter,
@@ -60,6 +65,11 @@ export const appRouter = router({
   ingest: ingestRouter,
   khoj: khojRouter,
   gateway: gatewayRouter,
+  // AI 服务统一迁移新增路由
+  research: researchRouter,
+  agent: agentRouter,
+  automation: automationRouter,
+  featureFlag: featureFlagRouter,
 });
 
 export const createCaller = t.createCallerFactory(appRouter);

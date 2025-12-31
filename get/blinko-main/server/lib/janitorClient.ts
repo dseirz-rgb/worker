@@ -333,9 +333,14 @@ export class JanitorClient {
   async getFullConfig(): Promise<JanitorFullConfig> {
     try {
       const response = await this.client.get('/config');
+      if (!response.data) {
+        throw new JanitorError('配置响应为空');
+      }
       return response.data;
     } catch (error) {
       this.handleError(error, '获取配置');
+      // handleError always throws, this line is unreachable
+      throw new Error('Unreachable');
     }
   }
 

@@ -210,8 +210,11 @@ const FilesPage = observer(() => {
           loadMockData();
         } else {
           // 直接设置所有数据
-          setTags(tagsData || MOCK_TAGS);
-          setDocumentTypes(typesData || MOCK_DOCUMENT_TYPES);
+          // API 返回 { count, results } 格式，需要提取 results 数组
+          const tagsArray = Array.isArray(tagsData) ? tagsData : (tagsData?.results || MOCK_TAGS);
+          const typesArray = Array.isArray(typesData) ? typesData : (typesData?.results || MOCK_DOCUMENT_TYPES);
+          setTags(tagsArray);
+          setDocumentTypes(typesArray);
           setDocuments(docsResult?.results || MOCK_DOCUMENTS);
           setTotalCount(docsResult?.count || MOCK_DOCUMENTS.length);
           setIsLoading(false);
@@ -238,8 +241,11 @@ const FilesPage = observer(() => {
           api.paperless.listTags.query(),
           api.paperless.listDocumentTypes.query(),
         ]);
-        setTags(tagsData || []);
-        setDocumentTypes(typesData || []);
+        // API 返回 { count, results } 格式，需要提取 results 数组
+        const tagsArray = Array.isArray(tagsData) ? tagsData : (tagsData?.results || []);
+        const typesArray = Array.isArray(typesData) ? typesData : (typesData?.results || []);
+        setTags(tagsArray);
+        setDocumentTypes(typesArray);
       } catch (error) {
         console.error('Failed to load metadata:', error);
         // 失败时使用 Mock 数据
@@ -262,12 +268,44 @@ const FilesPage = observer(() => {
       try {
         let result;
         if (searchQuery) {
-          result = await api.paperless.searchDocuments.query({
-            query: searchQuery,
-            page: currentPage,
-            pageSize,
-          });
+          // 根据搜索模式选择 API
+          const alpha = getAlpha(searchQuery);
+          
+          if (alpha > 0) {
+            // 深度搜索 (SeekDB 向量搜索)
+            const hybridResult = await api.paperless.hybridSearch.mutate({
+              query: searchQuery,
+              alpha,
+              limit: pageSize,
+            });
+            
+            // 转换结果格式
+            result = {
+              results: hybridResult.results.map(r => ({
+                id: parseInt(r.id) || 0,
+                title: r.source_path.split('/').pop() || r.content.slice(0, 50),
+                content: r.content,
+                created: r.created_at || new Date().toISOString(),
+                modified: r.created_at || new Date().toISOString(),
+                added: r.created_at || new Date().toISOString(),
+                correspondent: null,
+                document_type: null,
+                tags: [],
+                original_file_name: r.source_path.split('/').pop() || '',
+                score: r.score,
+              })),
+              count: hybridResult.total,
+            };
+          } else {
+            // 快速搜索 (PostgreSQL)
+            result = await api.paperless.searchDocuments.query({
+              query: searchQuery,
+              page: currentPage,
+              pageSize,
+            });
+          }
         } else {
+          // 无搜索词时，使用快速列表
           result = await api.paperless.listDocuments.query({
             page: currentPage,
             pageSize,
@@ -288,7 +326,7 @@ const FilesPage = observer(() => {
       }
     };
     loadDocuments();
-  }, [isConfigured, searchQuery, currentPage, sortBy, selectedTagIds, selectedDocumentTypeId]);
+  }, [isConfigured, searchQuery, currentPage, sortBy, selectedTagIds, selectedDocumentTypeId, searchMode, getAlpha]);
 
   // 事件处理
   const handleSearch = useCallback((value: string) => {
@@ -324,8 +362,11 @@ const FilesPage = observer(() => {
         api.paperless.listTags.query(),
         api.paperless.listDocumentTypes.query(),
       ]);
-      setTags(tagsData || []);
-      setDocumentTypes(typesData || []);
+      // API 返回 { count, results } 格式，需要提取 results 数组
+      const tagsArray = Array.isArray(tagsData) ? tagsData : (tagsData?.results || []);
+      const typesArray = Array.isArray(typesData) ? typesData : (typesData?.results || []);
+      setTags(tagsArray);
+      setDocumentTypes(typesArray);
       
       let result;
       if (searchQuery) {

@@ -16,7 +16,7 @@ import { SSOSetting } from '@/components/BlinkoSettings/SSOSetting';
 import { HttpProxySetting } from '@/components/BlinkoSettings/HttpProxySetting';
 import { PaperlessSetting } from '@/components/BlinkoSettings/PaperlessSetting';
 import { JanitorSetting } from '@/components/BlinkoSettings/JanitorSetting';
-import { KhojSetting } from '@/components/BlinkoSettings/KhojSetting';
+import { EchoAISetting } from '@/components/BlinkoSettings/EchoAISetting';
 import { DataFlowGuide } from '@/components/BlinkoSettings/DataFlowGuide';
 import { useTranslation } from 'react-i18next';
 import { JSX } from 'react';
@@ -120,16 +120,16 @@ export const allSettings: SettingItem[] = [
     keywords: ['janitor', 'ai', 'organize', 'classify', '整理', '分类', '重命名', 'llama'],
   },
   {
-    key: 'khoj',
-    title: 'Khoj AI',
+    key: 'echoai',
+    title: ('echoai-assistant'),
     icon: 'mdi:robot-outline',
-    component: <KhojSetting />,
+    component: <EchoAISetting />,
     requireAdmin: true,
-    keywords: ['khoj', 'ai', 'assistant', 'knowledge', 'search', 'AI助手', '知识检索', '语义搜索'],
+    keywords: ['echoai', 'ai', 'assistant', 'knowledge', 'search', 'AI助手', '知识检索', '语义搜索'],
   },
   {
     key: 'dataflow',
-    title: '数据处理流程',
+    title: ('dataflow-guide'),
     icon: 'solar:routing-2-bold-duotone',
     component: null, // 将在 Page 组件中动态设置
     requireAdmin: true,

@@ -148,6 +148,21 @@ export const khojRouter = router({
       }
     }),
 
+  /**
+   * 创建新对话
+   */
+  createConversation: publicProcedure
+    .input(z.object({ agentSlug: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      ensureServiceAvailable();
+      try {
+        const client = getKhojClient();
+        return await client.createConversation(input.agentSlug);
+      } catch (error) {
+        handleKhojError(error);
+      }
+    }),
+
   // ============ 搜索 API ============
 
   /**
@@ -266,14 +281,20 @@ export const khojRouter = router({
 
   /**
    * 获取自动化任务列表
+   * 服务不可用时返回空数组，避免页面一直转圈
    */
   getAutomations: publicProcedure.query(async () => {
-    ensureServiceAvailable();
+    // 服务不可用时返回空数组，让前端能正常显示
+    if (!serviceRegistry.isAvailable('khoj')) {
+      return [];
+    }
     try {
       const client = getKhojClient();
       return await client.getAutomations();
     } catch (error) {
-      handleKhojError(error);
+      // 出错时也返回空数组，避免页面崩溃
+      console.warn('[khoj.getAutomations] Error:', error);
+      return [];
     }
   }),
 

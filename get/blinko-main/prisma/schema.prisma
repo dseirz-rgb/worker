@@ -42,6 +42,9 @@ model accounts {
   activityRecords activityRecord[]
   memories      memory[]
   preferences   userPreference[]
+  agents        agent[]
+  researchSessions researchSession[]
+  featureFlags  featureFlag[]
 }
 
 model attachments {
@@ -300,6 +303,7 @@ model aiModels {
   updatedAt     DateTime @updatedAt @db.Timestamptz(6)
 
   provider      aiProviders @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  agents        agent[]
 
   @@index([providerId])
 }
@@ -317,6 +321,7 @@ model aiScheduledTask {
   updatedAt   DateTime @updatedAt @db.Timestamptz(6)
 
   account     accounts @relation(fields: [accountId], references: [id])
+  runs        automationRun[]
 
   @@index([accountId])
 }
@@ -437,4 +442,75 @@ model userPreference {
   @@unique([accountId, category, key])
   @@index([accountId])
   @@index([category])
+}
+
+// AI 服务统一: Agent 管理
+model agent {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(255)
+  persona     String?  @db.Text
+  systemPrompt String  @db.Text
+  tools       String[] @default([])
+  modelId     Int?
+  privacy     String   @default("private") @db.VarChar(20)
+  accountId   Int
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  account     accounts @relation(fields: [accountId], references: [id])
+  model       aiModels? @relation(fields: [modelId], references: [id])
+
+  @@index([accountId])
+  @@index([privacy])
+}
+
+// AI 服务统一: 自动化运行记录
+model automationRun {
+  id           Int       @id @default(autoincrement())
+  automationId Int
+  status       String    @db.VarChar(20)
+  result       String?   @db.Text
+  error        String?   @db.Text
+  startedAt    DateTime  @db.Timestamptz(6)
+  completedAt  DateTime? @db.Timestamptz(6)
+
+  automation   aiScheduledTask @relation(fields: [automationId], references: [id])
+
+  @@index([automationId])
+  @@index([status])
+}
+
+// AI 服务统一: 研究会话
+model researchSession {
+  id          Int       @id @default(autoincrement())
+  query       String    @db.Text
+  summary     String?   @db.Text
+  iterations  Json      @db.Json
+  sources     Json      @db.Json
+  confidence  Float     @default(0)
+  status      String    @db.VarChar(20)
+  accountId   Int
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+  completedAt DateTime? @db.Timestamptz(6)
+
+  account     accounts @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([status])
+}
+
+// AI 服务统一: 功能开关
+model featureFlag {
+  id          Int      @id @default(autoincrement())
+  key         String   @db.VarChar(100)
+  value       Boolean  @default(false)
+  accountId   Int?
+  metadata    Json?    @db.Json
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  account     accounts? @relation(fields: [accountId], references: [id])
+
+  @@unique([key, accountId])
 }

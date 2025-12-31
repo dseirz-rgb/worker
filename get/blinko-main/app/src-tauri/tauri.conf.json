@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Blinko",
+  "productName": "Echo",
   "version": "1.8.0",
-  "identifier": "com.blinko.app",
+  "identifier": "com.echo.app",
   "build": {
     "beforeDevCommand": "",
     "devUrl": "http://localhost:1111",
@@ -16,7 +16,7 @@
     },
     "windows": [
       {
-        "title": "Blinko",
+        "title": "Echo",
         "width": 1920,
         "height": 1080,
         "minWidth": 600,

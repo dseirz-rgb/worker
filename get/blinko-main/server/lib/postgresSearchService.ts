@@ -27,12 +27,12 @@ export interface SearchResult {
   path: string;
   type: string;
   size: number;
-  content: string;
   noteId: number | null;
   accountId: number | null;
   createdAt: Date;
   updatedAt: Date;
   score: number;  // 相似度分数
+  metadata?: Record<string, unknown>;
 }
 
 export interface PaginatedSearchResult {
@@ -112,14 +112,14 @@ export class PostgresSearchService {
 
     const whereClause = whereConditions.join(' AND ');
 
-    // 执行搜索查询
+    // 执行搜索查询 - 使用原生 SQL
     const searchSql = `
       SELECT 
-        id, name, path, type, size::float, content,
-        "noteId", "accountId", "createdAt", "updatedAt",
+        id, name, path, type, size::float,
+        "noteId", "accountId", "createdAt", "updatedAt", metadata,
         GREATEST(
           similarity(name, $${paramIndex}),
-          similarity(content, $${paramIndex})
+          COALESCE(similarity(content, $${paramIndex}), 0)
         ) AS score
       FROM attachments
       WHERE ${whereClause}
@@ -164,6 +164,7 @@ export class PostgresSearchService {
 
   /**
    * 列出附件（带分页和过滤）
+   * 使用 Prisma ORM，不涉及 content 字段
    */
   async list(
     filters?: ListFilters,
@@ -210,12 +211,12 @@ export class PostgresSearchService {
           path: r.path,
           type: r.type,
           size: Number(r.size),
-          content: r.content,
           noteId: r.noteId,
           accountId: r.accountId,
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
-          score: 1.0  // 列表查询没有相似度分数
+          score: 1.0,  // 列表查询没有相似度分数
+          metadata: r.metadata as Record<string, unknown> | undefined
         })),
         total,
         page,
@@ -245,12 +246,12 @@ export class PostgresSearchService {
         path: result.path,
         type: result.type,
         size: Number(result.size),
-        content: result.content,
         noteId: result.noteId,
         accountId: result.accountId,
         createdAt: result.createdAt,
         updatedAt: result.updatedAt,
-        score: 1.0
+        score: 1.0,
+        metadata: result.metadata as Record<string, unknown> | undefined
       };
     } catch (error) {
       console.error('PostgreSQL getById error:', error);
@@ -259,14 +260,13 @@ export class PostgresSearchService {
   }
 
   /**
-   * 更新附件内容（用于索引）
+   * 更新附件内容（用于索引）- 使用原生 SQL
    */
   async updateContent(id: number, content: string): Promise<void> {
     try {
-      await prisma.attachments.update({
-        where: { id },
-        data: { content }
-      });
+      await prisma.$executeRaw`
+        UPDATE attachments SET content = ${content} WHERE id = ${id}
+      `;
     } catch (error) {
       console.error('PostgreSQL updateContent error:', error);
       throw new Error(`更新内容失败: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -274,16 +274,14 @@ export class PostgresSearchService {
   }
 
   /**
-   * 批量更新附件内容
+   * 批量更新附件内容 - 使用原生 SQL
    */
   async batchUpdateContent(updates: { id: number; content: string }[]): Promise<void> {
     try {
+      // 使用事务批量更新
       await prisma.$transaction(
         updates.map(({ id, content }) =>
-          prisma.attachments.update({
-            where: { id },
-            data: { content }
-          })
+          prisma.$executeRaw`UPDATE attachments SET content = ${content} WHERE id = ${id}`
         )
       );
     } catch (error) {
@@ -293,37 +291,33 @@ export class PostgresSearchService {
   }
 
   /**
-   * 获取搜索统计信息
+   * 获取搜索统计信息 - 使用原生 SQL
    */
   async getStats(accountId?: number): Promise<{
     totalCount: number;
     indexedCount: number;
     totalSize: number;
   }> {
-    const where: Prisma.attachmentsWhereInput = {};
-    if (accountId) {
-      where.accountId = accountId;
-    }
-
     try {
-      const [total, indexed, sizeResult] = await Promise.all([
-        prisma.attachments.count({ where }),
-        prisma.attachments.count({
-          where: {
-            ...where,
-            content: { not: '' }
-          }
-        }),
-        prisma.attachments.aggregate({
-          where,
-          _sum: { size: true }
-        })
-      ]);
+      const whereClause = accountId ? `WHERE "accountId" = ${accountId}` : '';
+      
+      const result = await prisma.$queryRawUnsafe<[{
+        total_count: bigint;
+        indexed_count: bigint;
+        total_size: number;
+      }]>(`
+        SELECT 
+          COUNT(*) as total_count,
+          COUNT(CASE WHEN content != '' AND content IS NOT NULL THEN 1 END) as indexed_count,
+          COALESCE(SUM(size), 0)::float as total_size
+        FROM attachments
+        ${whereClause}
+      `);
 
       return {
-        totalCount: total,
-        indexedCount: indexed,
-        totalSize: Number(sizeResult._sum.size || 0)
+        totalCount: Number(result[0]?.total_count || 0),
+        indexedCount: Number(result[0]?.indexed_count || 0),
+        totalSize: Number(result[0]?.total_size || 0)
       };
     } catch (error) {
       console.error('PostgreSQL getStats error:', error);

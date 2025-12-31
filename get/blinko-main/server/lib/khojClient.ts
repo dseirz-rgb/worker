@@ -136,29 +136,62 @@ export class KhojClient {
   // ============ 聊天 API ============
 
   /**
-   * 发送聊天消息
+   * 发送聊天消息（非流式）
    */
   async chat(
     message: string,
-    options?: {
-      conversationId?: string;
-      agent?: string;
-      stream?: boolean;
-    }
-  ): Promise<KhojChatMessage | ReadableStream> {
+    conversationId: string,
+    agentSlug?: string
+  ): Promise<{ response: string }> {
     try {
-      const params = new URLSearchParams({ q: message });
-      if (options?.conversationId) params.set('conversation_id', options.conversationId);
-      if (options?.agent) params.set('agent', options.agent);
-      if (options?.stream) params.set('stream', 'true');
-
-      const response = await this.client.get(`/api/chat?${params}`, {
-        responseType: options?.stream ? 'stream' : 'json',
+      // Khoj API 使用 POST 方法，参数通过 query string 传递
+      const params = new URLSearchParams({
+        stream: 'false',
+        client: 'web',
       });
 
+      const response = await this.client.post(`/api/chat?${params}`, {
+        q: message,
+        conversation_id: conversationId,
+        ...(agentSlug && { agent: agentSlug }),
+      });
       return response.data;
     } catch (error) {
       throw new KhojClientError('聊天请求失败', undefined, error as Error);
+    }
+  }
+
+  /**
+   * 发送聊天消息（流式）
+   * 返回可读流，用于 SSE 响应
+   */
+  async chatStream(
+    message: string,
+    conversationId: string,
+    agentSlug?: string
+  ): Promise<NodeJS.ReadableStream> {
+    try {
+      // Khoj API 使用 POST 方法，参数通过 request body 传递
+      const params = new URLSearchParams({
+        stream: 'true',
+        client: 'web',
+      });
+
+      const response = await this.client.post(
+        `/api/chat?${params}`,
+        {
+          q: message,
+          conversation_id: conversationId,
+          ...(agentSlug && { agent: agentSlug }),
+        },
+        {
+          responseType: 'stream',
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      throw new KhojClientError('聊天流请求失败', undefined, error as Error);
     }
   }
 
@@ -183,6 +216,21 @@ export class KhojClient {
       return response.data;
     } catch (error) {
       throw new KhojClientError('获取对话失败', undefined, error as Error);
+    }
+  }
+
+  /**
+   * 创建新对话
+   */
+  async createConversation(agentSlug?: string): Promise<{ conversation_id: string }> {
+    try {
+      const params = new URLSearchParams({ client: 'web' });
+      if (agentSlug) params.set('agent_slug', agentSlug);
+      
+      const response = await this.client.post(`/api/chat/sessions?${params}`);
+      return response.data;
+    } catch (error) {
+      throw new KhojClientError('创建对话失败', undefined, error as Error);
     }
   }
 

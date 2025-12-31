@@ -48,9 +48,14 @@ const TranslationPage = lazy(() => import('./pages/translation'));
 const ActivityPage = lazy(() => import('./pages/activity'));
 const RoleSelectPage = lazy(() => import('./pages/role-select'));
 const FilesPage = lazy(() => import('./pages/files'));
-const KhojPage = lazy(() => import('./pages/khoj'));
+const KhojPage = lazy(() => import('./pages/echoai'));
+const EchoAIHomePage = lazy(() => import('./pages/echoai-home'));
+const EchoAISearchPage = lazy(() => import('./pages/echoai-search'));
 const AgentsPage = lazy(() => import('./pages/agents'));
 const AutomationsPage = lazy(() => import('./pages/automations'));
+const ResearchPage = lazy(() => import('./pages/research'));
+const NotesPage = lazy(() => import('./pages/notes'));
+const JanitorPage = lazy(() => import('./pages/janitor'));
 
 const HomeRedirect = () => {
   const navigate = useNavigate();
@@ -264,9 +269,14 @@ function AppRoutes() {
             <Route path="/translation" element={<ProtectedRoute><TranslationPage /></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute><ActivityPage /></ProtectedRoute>} />
             <Route path="/files" element={<ProtectedRoute><FilesPage /></ProtectedRoute>} />
-            <Route path="/khoj" element={<ProtectedRoute><KhojPage /></ProtectedRoute>} />
+            <Route path="/notes" element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
+            <Route path="/echoai" element={<ProtectedRoute><KhojPage /></ProtectedRoute>} />
+            <Route path="/echoai/home" element={<ProtectedRoute><EchoAIHomePage /></ProtectedRoute>} />
+            <Route path="/echoai/search" element={<ProtectedRoute><EchoAISearchPage /></ProtectedRoute>} />
             <Route path="/agents" element={<ProtectedRoute><AgentsPage /></ProtectedRoute>} />
             <Route path="/automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
+            <Route path="/research" element={<ProtectedRoute><ResearchPage /></ProtectedRoute>} />
+            <Route path="/janitor" element={<ProtectedRoute><JanitorPage /></ProtectedRoute>} />
             <Route path="/role-select" element={<RoleSelectPage />} />
             <Route path="/quicknote" element={<QuickNotePage />} />
             <Route path="/quickai" element={<QuickAIPage />} />

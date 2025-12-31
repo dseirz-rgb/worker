@@ -12,98 +12,133 @@ export class BaseStore implements Store {
     makeAutoObservable(this);
   }
   routerList = [
+    // 主导航
     {
-      title: 'blinko',
-      href: '/',
-      shallow: true,
-      icon: 'basil:lightning-outline',
+      title: 'home',
+      href: '/echoai/home',
+      icon: 'mdi:home',
+      group: 'main',
     },
     {
       title: 'notes',
-      shallow: true,
-      href: '/?path=notes',
+      href: '/notes',
       icon: 'hugeicons:note',
-    },
-    {
-      title: 'todo',
-      shallow: true,
-      href: '/?path=todo',
-      icon: 'solar:bill-check-linear',
-    },
-    {
-      title: 'translation',
-      href: '/translation',
-      icon: 'hugeicons:translate',
-    },
-    {
-      title: 'activity',
-      href: '/activity',
-      icon: 'hugeicons:activity-01',
-    },
-    {
-      title: 'analytics',
-      href: '/analytics',
-      hiddenMobile: true,
-      icon: 'hugeicons:analytics-01',
-    },
-    {
-      title: 'resources',
-      href: '/resources',
-      icon: 'solar:database-linear',
-      hiddenMobile: true,
+      group: 'main',
     },
     {
       title: 'files',
       href: '/files',
       icon: 'solar:folder-with-files-bold-duotone',
-      hiddenMobile: true,
+      group: 'main',
     },
     {
-      title: 'khoj',
-      href: '/khoj',
+      title: 'echoai',
+      href: '/echoai',
       icon: 'mdi:robot-outline',
-      hiddenMobile: true,
+      group: 'main',
     },
     {
-      title: 'agents',
-      href: '/agents',
-      icon: 'mdi:robot-happy-outline',
-      hiddenMobile: true,
+      title: 'search',
+      href: '/echoai/search',
+      icon: 'mdi:magnify',
+      group: 'main',
+    },
+    // 工具箱
+    {
+      title: 'analytics',
+      href: '/analytics',
+      icon: 'hugeicons:analytics-01',
+      group: 'tools',
+    },
+    {
+      title: 'translation',
+      href: '/translation',
+      icon: 'hugeicons:translate',
+      group: 'tools',
+    },
+    {
+      title: 'resources',
+      href: '/resources',
+      icon: 'solar:database-linear',
+      group: 'tools',
+    },
+    {
+      title: 'activity',
+      href: '/activity',
+      icon: 'hugeicons:activity-01',
+      group: 'tools',
+    },
+    {
+      title: 'research',
+      href: '/research',
+      icon: 'solar:magnifer-zoom-in-bold-duotone',
+      group: 'tools',
     },
     {
       title: 'automations',
       href: '/automations',
       icon: 'solar:clock-circle-bold-duotone',
-      hiddenMobile: true,
+      group: 'tools',
+    },
+    {
+      title: 'agent-management',
+      href: '/agents',
+      icon: 'mdi:robot-happy-outline',
+      group: 'tools',
+    },
+    {
+      title: 'janitor',
+      href: '/janitor',
+      icon: 'mdi:broom',
+      group: 'tools',
+    },
+    {
+      title: 'settings',
+      href: '/settings',
+      icon: 'hugeicons:settings-01',
+      group: 'tools',
+    },
+    // 隐藏路由（仍可访问，但不在侧边栏显示）
+    {
+      title: 'blinko',
+      href: '/',
+      shallow: true,
+      icon: 'basil:lightning-outline',
+      hiddenSidebar: true,
     },
     {
       title: 'archived',
       href: '/?path=archived',
       icon: 'solar:box-broken',
-      hiddenMobile: true,
+      hiddenSidebar: true,
     },
     {
       title: 'trash',
       href: '/?path=trash',
-      hiddenMobile: true,
-      hiddenSidebar: true,
       icon: 'hugeicons:delete-02',
+      hiddenSidebar: true,
     },
     {
       title: 'plugin',
       href: '/plugin',
-      hiddenSidebar: true,
-      hiddenMobile: true,
       icon: 'hugeicons:plug-socket',
-    },
-    {
-      title: 'settings',
-      href: '/settings',
       hiddenSidebar: true,
-      hiddenMobile: true,
-      icon: 'hugeicons:settings-01',
     },
   ];
+
+  // 工具箱展开状态
+  toolsExpanded = new StorageState<boolean>({
+    key: 'tools-expanded',
+    default: false,
+  });
+
+  get isToolsExpanded() {
+    return this.toolsExpanded.value;
+  }
+
+  toggleTools = () => {
+    this.toolsExpanded.save(!this.isToolsExpanded);
+  };
   currentRouter = this.routerList[0];
   currentQuery = {};
   currentTitle = '';
@@ -201,12 +236,20 @@ export class BaseStore implements Store {
         this.currentTitle = 'resources';
       } else if (location.pathname == '/files') {
         this.currentTitle = 'files';
-      } else if (location.pathname == '/khoj') {
-        this.currentTitle = 'khoj';
+      } else if (location.pathname == '/echoai') {
+        this.currentTitle = 'echoai';
+      } else if (location.pathname == '/echoai/home') {
+        this.currentTitle = 'echoai-home';
+      } else if (location.pathname == '/echoai/search') {
+        this.currentTitle = 'echoai-search';
       } else if (location.pathname == '/agents') {
         this.currentTitle = 'agents';
       } else if (location.pathname == '/automations') {
         this.currentTitle = 'automations';
+      } else if (location.pathname == '/research') {
+        this.currentTitle = 'research';
+      } else if (location.pathname == '/janitor') {
+        this.currentTitle = 'janitor';
       } else if (searchParams.get('path') == 'trash') {
         this.currentTitle = 'trash';
       } else if (location.pathname == '/plugin') {
