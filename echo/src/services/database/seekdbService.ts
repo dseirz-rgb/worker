@@ -107,6 +107,62 @@ export interface SearchResult {
   metadata: Record<string, unknown>;
 }
 
+// ============== 知识库搜索类型 (SeekDB v2) ==============
+
+/** 知识库搜索请求 */
+export interface KnowledgeSearchRequest {
+  query: string;
+  alpha?: number;  // 向量权重 0-1，默认 0.5
+  sourceType?: 'note' | 'video' | 'ppt';
+  limit?: number;
+}
+
+/** 知识库搜索结果项 */
+export interface KnowledgeSearchResultItem {
+  id: string;
+  content: string;
+  sourceType: string;
+  sourcePath: string;
+  metadata: {
+    // 笔记类型
+    supabaseId?: string;
+    tags?: string[];
+    isTodo?: boolean;
+    // 视频类型
+    startTime?: number;
+    endTime?: number;
+    duration?: number;
+    // PPT 类型
+    pageNumber?: number;
+    totalPages?: number;
+    title?: string;
+    // 通用
+    filePath?: string;
+  };
+  score: number;
+  createdAt?: string;
+}
+
+/** 知识库搜索响应 */
+export interface KnowledgeSearchResponse {
+  results: KnowledgeSearchResultItem[];
+  total: number;
+  query: string;
+  alpha: number;
+}
+
+/** 来源类型统计 */
+export interface SourceTypeStats {
+  sourceType: string;
+  count: number;
+}
+
+/** 知识库统计响应 */
+export interface KnowledgeStatsResponse {
+  totalDocuments: number;
+  bySourceType: SourceTypeStats[];
+}
+
 export interface HealthResponse {
   status: string;
   database: string;
@@ -618,6 +674,140 @@ export class SeekDBService {
       throw new Error(`删除向量失败: ${response.statusText}`);
     }
     return response.json();
+  }
+
+  // ============== 知识库搜索 API (SeekDB v2) ==============
+
+  /**
+   * 知识库混合搜索
+   * 支持笔记、视频、PPT 的统一搜索
+   * 
+   * @param params 搜索参数
+   * @returns 搜索结果
+   */
+  async knowledgeSearch(params: KnowledgeSearchRequest): Promise<KnowledgeSearchResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: params.query,
+          alpha: params.alpha ?? 0.5,
+          source_type: params.sourceType,
+          limit: params.limit ?? 20,
+        }),
+      });
+      
+      if (!response.ok) {
+        if (response.status === 400) {
+          throw new Error('查询不能为空');
+        }
+        throw new Error(`搜索失败: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // 转换响应格式（snake_case -> camelCase）
+      return {
+        results: data.results.map((item: Record<string, unknown>) => ({
+          id: item.id,
+          content: item.content,
+          sourceType: item.source_type,
+          sourcePath: item.source_path,
+          metadata: this.transformMetadata(item.metadata as Record<string, unknown>),
+          score: item.score,
+          createdAt: item.created_at,
+        })),
+        total: data.total,
+        query: data.query,
+        alpha: data.alpha,
+      };
+    } catch (error) {
+      console.error('知识库搜索失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 转换 metadata 字段名（snake_case -> camelCase）
+   */
+  private transformMetadata(metadata: Record<string, unknown>): KnowledgeSearchResultItem['metadata'] {
+    return {
+      supabaseId: metadata.supabase_id as string | undefined,
+      tags: metadata.tags as string[] | undefined,
+      isTodo: metadata.is_todo as boolean | undefined,
+      startTime: metadata.start_time as number | undefined,
+      endTime: metadata.end_time as number | undefined,
+      duration: metadata.duration as number | undefined,
+      pageNumber: metadata.page_number as number | undefined,
+      totalPages: metadata.total_pages as number | undefined,
+      title: metadata.title as string | undefined,
+      filePath: metadata.file_path as string | undefined,
+    };
+  }
+
+  /**
+   * 获取知识库统计信息
+   */
+  async getKnowledgeStats(): Promise<KnowledgeStatsResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/stats`);
+      
+      if (!response.ok) {
+        throw new Error(`获取统计失败: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      return {
+        totalDocuments: data.total_documents,
+        bySourceType: data.by_source_type.map((item: Record<string, unknown>) => ({
+          sourceType: item.source_type,
+          count: item.count,
+        })),
+      };
+    } catch (error) {
+      console.error('获取知识库统计失败:', error);
+      return {
+        totalDocuments: 0,
+        bySourceType: [],
+      };
+    }
+  }
+
+  /**
+   * 获取所有来源类型
+   */
+  async getSourceTypes(): Promise<Array<{ sourceType: string; count: number }>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/source-types`);
+      
+      if (!response.ok) {
+        return [];
+      }
+      
+      const data = await response.json();
+      return data.map((item: Record<string, unknown>) => ({
+        sourceType: item.source_type,
+        count: item.count,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * 语义搜索（纯向量搜索）
+   */
+  async semanticSearch(query: string, limit = 20): Promise<KnowledgeSearchResponse> {
+    return this.knowledgeSearch({ query, alpha: 1.0, limit });
+  }
+
+  /**
+   * 关键词搜索（纯全文搜索）
+   */
+  async keywordSearch(query: string, limit = 20): Promise<KnowledgeSearchResponse> {
+    return this.knowledgeSearch({ query, alpha: 0.0, limit });
   }
 }
 

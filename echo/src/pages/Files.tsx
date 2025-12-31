@@ -16,11 +16,12 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { FileSearchInput } from '../components/files/FileSearchInput';
+import { FileSearchInput, type SearchOptions } from '../components/files/FileSearchInput';
 import { FileCard, FolderCard } from '../components/files/FileCard';
 import {
   searchFiles,
   semanticSearchFiles,
+  hybridSearchFiles,
   addWatchFolder,
   removeWatchFolder,
   getWatchedFolders,
@@ -31,7 +32,6 @@ import {
 } from '../services/files';
 import { 
   FolderPlus, 
-  Sparkles, 
   Search, 
   FileText,
   Image,
@@ -50,12 +50,15 @@ export default function FilesPage() {
   // 状态
   const [searchResults, setSearchResults] = useState<FileSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchMode, setSearchMode] = useState<'normal' | 'semantic'>('normal');
   const [watchedFolders, setWatchedFolders] = useState<string[]>(getWatchedFolders());
   const [stats, setStats] = useState<FileStats | null>(null);
   const [activeTab, setActiveTab] = useState('search');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  
+  // 搜索统计
+  const [lastLatency, setLastLatency] = useState<number | undefined>();
+  const [lastBackend, setLastBackend] = useState<string | undefined>();
 
   // 加载统计信息
   useEffect(() => {
@@ -69,30 +72,54 @@ export default function FilesPage() {
     }
   };
 
-  // 搜索文件
-  const handleSearch = async (query: string) => {
+  // 搜索文件（使用新的 SearchOptions）
+  const handleSearch = async (options: SearchOptions) => {
+    const { query, alpha } = options;
+    
     if (!query.trim()) {
       setSearchResults([]);
       return;
     }
     
     setLoading(true);
+    setLastLatency(undefined);
+    setLastBackend(undefined);
+    
     try {
-      const result =
-        searchMode === 'semantic'
-          ? await semanticSearchFiles(query, { 
-              limit: 20,
-              tags: selectedTags.length > 0 ? selectedTags : undefined,
-              types: selectedTypes.length > 0 ? selectedTypes : undefined,
-            })
-          : await searchFiles(query, { 
-              limit: 20,
-              tags: selectedTags.length > 0 ? selectedTags : undefined,
-              types: selectedTypes.length > 0 ? selectedTypes : undefined,
-            });
+      const searchOptions = {
+        limit: 20,
+        tags: selectedTags.length > 0 ? selectedTags : undefined,
+        types: selectedTypes.length > 0 ? selectedTypes : undefined,
+        alpha,
+      };
+      
+      let result;
+      
+      // 根据 alpha 值选择搜索方式
+      if (alpha === 0) {
+        // 纯全文搜索
+        result = await searchFiles(query, searchOptions);
+        setLastBackend('postgres');
+      } else if (alpha === 1) {
+        // 纯语义搜索
+        result = await semanticSearchFiles(query, searchOptions);
+        setLastBackend('seekdb');
+      } else {
+        // 混合搜索
+        result = await hybridSearchFiles(query, searchOptions);
+        setLastBackend('hybrid');
+      }
 
       if (result.success && result.data) {
         setSearchResults(result.data);
+        // 如果返回了延迟信息
+        if (result.latency) {
+          setLastLatency(result.latency);
+        }
+        // 如果返回了实际使用的后端
+        if (result.backend) {
+          setLastBackend(result.backend);
+        }
       }
     } catch (error) {
       console.error('搜索失败:', error);
@@ -252,55 +279,43 @@ export default function FilesPage() {
 
         {/* 搜索标签页 */}
         <TabsContent value="search" className="space-y-4">
-          {/* 搜索模式切换 */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant={searchMode === 'normal' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSearchMode('normal')}
-            >
-              <Search className="h-4 w-4 mr-1" />
-              全文搜索
-            </Button>
-            <Button
-              variant={searchMode === 'semantic' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSearchMode('semantic')}
-            >
-              <Sparkles className="h-4 w-4 mr-1" />
-              语义搜索
-            </Button>
-            
-            {/* 筛选器 */}
-            {(selectedTags.length > 0 || selectedTypes.length > 0) && (
-              <div className="flex items-center gap-1 ml-auto">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                {selectedTags.map(tag => (
-                  <Badge 
-                    key={tag} 
-                    variant="secondary" 
-                    className="cursor-pointer"
-                    onClick={() => toggleTag(tag)}
-                  >
-                    {tag} ×
-                  </Badge>
-                ))}
-                {selectedTypes.map(type => (
-                  <Badge 
-                    key={type} 
-                    variant="outline" 
-                    className="cursor-pointer"
-                    onClick={() => toggleType(type)}
-                  >
-                    {type} ×
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* 筛选器（如果有选中的标签或类型） */}
+          {(selectedTags.length > 0 || selectedTypes.length > 0) && (
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              {selectedTags.map(tag => (
+                <Badge 
+                  key={tag} 
+                  variant="secondary" 
+                  className="cursor-pointer"
+                  onClick={() => toggleTag(tag)}
+                >
+                  {tag} ×
+                </Badge>
+              ))}
+              {selectedTypes.map(type => (
+                <Badge 
+                  key={type} 
+                  variant="outline" 
+                  className="cursor-pointer"
+                  onClick={() => toggleType(type)}
+                >
+                  {type} ×
+                </Badge>
+              ))}
+            </div>
+          )}
 
-          {/* 搜索输入 */}
-          <FileSearchInput onSearch={handleSearch} loading={loading} />
+          {/* 搜索输入（集成模式选择器） */}
+          <FileSearchInput 
+            onSearch={handleSearch} 
+            loading={loading}
+            defaultMode="fast"
+            placeholder="搜索文件名、内容、标签..."
+            showStats={true}
+            lastLatency={lastLatency}
+            lastBackend={lastBackend}
+          />
 
           {/* 搜索结果 */}
           {searchResults.length > 0 ? (
@@ -309,12 +324,6 @@ export default function FilesPage() {
                 <h2 className="text-sm font-medium text-muted-foreground">
                   搜索结果 ({searchResults.length})
                 </h2>
-                {searchMode === 'semantic' && (
-                  <Badge variant="outline" className="text-xs">
-                    <Sparkles className="h-3 w-3 mr-1" />
-                    AI 语义匹配
-                  </Badge>
-                )}
               </div>
               {searchResults.map((result) => (
                 <FileCard
@@ -330,7 +339,7 @@ export default function FilesPage() {
             <div className="text-center py-12 text-muted-foreground">
               <Search className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p>输入关键词搜索文件</p>
-              <p className="text-xs mt-1">支持文件名、内容、标签搜索</p>
+              <p className="text-xs mt-1">默认使用快速搜索，可切换为语义搜索</p>
             </div>
           )}
         </TabsContent>

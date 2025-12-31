@@ -1,6 +1,6 @@
 /**
  * 文件管理服务
- * 参考 Paperless-ngx 的设计
+ * 参考 Paperless-ngx 的设计，使用 SeekDB 作为后端
  * 
  * 功能：
  * - 文件夹监控 (Folder Watching)
@@ -14,6 +14,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { getGeminiClient } from '../ai/gemini';
+import { seekdbService, type KnowledgeSearchResultItem } from '../database/seekdbService';
 import type { DbResult, LifeDomain } from '../../types/database';
 
 // ============================================================================
@@ -59,6 +60,19 @@ export interface SearchOptions {
   dateTo?: string;
   limit?: number;
   offset?: number;
+  /** 向量搜索权重 (0=纯全文, 1=纯向量, 0.5=混合) */
+  alpha?: number;
+}
+
+/** 搜索结果（带元数据） */
+export interface SearchResultWithMeta {
+  success: boolean;
+  data?: FileSearchResult[];
+  error?: string;
+  /** 搜索延迟 (ms) */
+  latency?: number;
+  /** 实际使用的后端 */
+  backend?: 'postgres' | 'seekdb' | 'hybrid';
 }
 
 /** 文档类型 (参考 Paperless-ngx) */
@@ -301,78 +315,217 @@ ${content.slice(0, 3000)}
 }
 
 // ============================================================================
-// 搜索功能
+// 搜索功能 (使用 SeekDB)
 // ============================================================================
 
 /**
- * 搜索文件
+ * 搜索文件 (使用 PostgreSQL 全文搜索)
+ * 快速搜索，响应 <100ms
  */
 export async function searchFiles(
   query: string,
   options?: SearchOptions
-): Promise<DbResult<FileSearchResult[]>> {
+): Promise<SearchResultWithMeta> {
+  const startTime = performance.now();
+  
   try {
-    const results = await invoke<FileSearchResult[]>('search_files', {
+    // 使用 SeekDB 全文搜索 (alpha=0)
+    const response = await seekdbService.knowledgeSearch({
       query,
-      options,
+      alpha: 0,  // 纯全文搜索
+      sourceType: options?.documentType as 'note' | 'video' | 'ppt' | undefined,
+      limit: options?.limit || 20,
     });
-    return { success: true, data: results };
+    
+    const latency = performance.now() - startTime;
+    
+    // 转换为 FileSearchResult 格式
+    const results: FileSearchResult[] = response.results.map((item) => ({
+      file: convertToFileIndex(item),
+      score: item.score,
+      highlights: extractHighlights(item.content, query),
+      matchType: 'content' as const,
+    }));
+    
+    return { 
+      success: true, 
+      data: results,
+      latency,
+      backend: 'postgres',
+    };
   } catch (error) {
     console.error('搜索文件失败:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : '搜索文件失败',
+      backend: 'postgres',
     };
   }
 }
 
 /**
- * 语义搜索文件
+ * 语义搜索文件 (使用 SeekDB 向量搜索)
  * 使用 AI 理解查询意图，进行更智能的搜索
  */
 export async function semanticSearchFiles(
   query: string,
   options?: SearchOptions
-): Promise<DbResult<FileSearchResult[]>> {
+): Promise<SearchResultWithMeta> {
+  const startTime = performance.now();
+  
   try {
-    const client = getGeminiClient();
-
-    // 使用 AI 扩展搜索查询
-    const prompt = `用户想要搜索文件，查询是："${query}"
-
-请分析用户意图，生成搜索策略。返回 JSON 格式：
-{
-  "keywords": ["关键词1", "关键词2", "关键词3"],
-  "documentTypes": ["可能的文档类型"],
-  "domains": ["可能的领域"],
-  "dateHint": "时间提示（如果有）"
-}
-
-只返回 JSON，不要其他内容。`;
-
-    const response = await client.generateContent(prompt, {
-      generationConfig: { temperature: 0.3, maxOutputTokens: 200 },
+    // 使用 SeekDB 语义搜索（纯向量）
+    const response = await seekdbService.knowledgeSearch({
+      query,
+      alpha: 1.0,  // 纯向量搜索
+      sourceType: options?.documentType as 'note' | 'video' | 'ppt' | undefined,
+      limit: options?.limit || 20,
     });
-
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      // 降级到普通搜索
-      return searchFiles(query, options);
-    }
-
-    const strategy = JSON.parse(jsonMatch[0]);
-    const combinedQuery = strategy.keywords?.join(' ') || query;
-
-    // 使用扩展的查询进行搜索
-    return searchFiles(combinedQuery, {
-      ...options,
-      documentType: strategy.documentTypes?.[0],
-    });
+    
+    const latency = performance.now() - startTime;
+    
+    // 转换为 FileSearchResult 格式
+    const results: FileSearchResult[] = response.results.map((item) => ({
+      file: convertToFileIndex(item),
+      score: item.score,
+      highlights: extractHighlights(item.content, query),
+      matchType: 'semantic' as const,
+    }));
+    
+    return { 
+      success: true, 
+      data: results,
+      latency,
+      backend: 'seekdb',
+    };
   } catch (error) {
     console.error('语义搜索文件失败:', error);
     // 降级到普通搜索
+    const fallbackResult = await searchFiles(query, options);
+    return {
+      ...fallbackResult,
+      backend: 'postgres',  // 降级后使用 postgres
+    };
+  }
+}
+
+/**
+ * 混合搜索文件 (结合全文和向量搜索)
+ * 根据 alpha 参数调整搜索权重
+ */
+export async function hybridSearchFiles(
+  query: string,
+  options?: SearchOptions
+): Promise<SearchResultWithMeta> {
+  const startTime = performance.now();
+  const alpha = options?.alpha ?? 0.5;  // 默认混合
+  
+  try {
+    // 使用 SeekDB 混合搜索
+    const response = await seekdbService.knowledgeSearch({
+      query,
+      alpha,
+      sourceType: options?.documentType as 'note' | 'video' | 'ppt' | undefined,
+      limit: options?.limit || 20,
+    });
+    
+    const latency = performance.now() - startTime;
+    
+    // 转换为 FileSearchResult 格式
+    const results: FileSearchResult[] = response.results.map((item) => ({
+      file: convertToFileIndex(item),
+      score: item.score,
+      highlights: extractHighlights(item.content, query),
+      matchType: alpha > 0.7 ? 'semantic' as const : alpha < 0.3 ? 'content' as const : 'content' as const,
+    }));
+    
+    return { 
+      success: true, 
+      data: results,
+      latency,
+      backend: 'hybrid',
+    };
+  } catch (error) {
+    console.error('混合搜索文件失败:', error);
+    // 降级到全文搜索
     return searchFiles(query, options);
   }
+}
+
+/**
+ * 将 SeekDB 搜索结果转换为 FileIndex 格式
+ */
+function convertToFileIndex(item: KnowledgeSearchResultItem): FileIndex {
+  const metadata = item.metadata;
+  
+  // 根据 sourceType 构建文件信息
+  let name = '';
+  let extension = '';
+  let path = item.sourcePath;
+  
+  switch (item.sourceType) {
+    case 'note':
+      name = `笔记 ${item.id.slice(0, 8)}`;
+      extension = 'md';
+      break;
+    case 'video':
+      name = metadata.filePath?.split('/').pop() || `视频片段 ${metadata.startTime}s`;
+      extension = 'mp4';
+      path = metadata.filePath || item.sourcePath;
+      break;
+    case 'ppt':
+      name = metadata.title || `PPT 第${metadata.pageNumber}页`;
+      extension = 'pptx';
+      path = metadata.filePath || item.sourcePath;
+      break;
+    default:
+      name = item.id;
+      extension = '';
+  }
+  
+  return {
+    id: item.id,
+    path,
+    name,
+    extension,
+    size: 0,  // SeekDB 不存储文件大小
+    domain: 'general' as LifeDomain,
+    content: item.content,
+    tags: metadata.tags || [],
+    documentType: item.sourceType,
+    indexedAt: item.createdAt || new Date().toISOString(),
+    modifiedAt: item.createdAt || new Date().toISOString(),
+  };
+}
+
+/**
+ * 从内容中提取高亮片段
+ */
+function extractHighlights(content: string, query: string): string[] {
+  if (!content || !query) return [];
+  
+  const highlights: string[] = [];
+  const lowerContent = content.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const words = lowerQuery.split(/\s+/).filter(w => w.length > 1);
+  
+  for (const word of words) {
+    const index = lowerContent.indexOf(word);
+    if (index !== -1) {
+      // 提取上下文（前后各 50 个字符）
+      const start = Math.max(0, index - 50);
+      const end = Math.min(content.length, index + word.length + 50);
+      const highlight = content.slice(start, end);
+      highlights.push(highlight);
+    }
+  }
+  
+  // 如果没有找到匹配，返回内容开头
+  if (highlights.length === 0 && content.length > 0) {
+    highlights.push(content.slice(0, 100));
+  }
+  
+  return highlights.slice(0, 3);  // 最多返回 3 个高亮
 }
 
 // ============================================================================
@@ -557,28 +710,33 @@ export interface FileStats {
 }
 
 /**
- * 获取文件统计信息
+ * 获取文件统计信息 (使用 SeekDB)
  */
 export async function getFileStats(): Promise<DbResult<FileStats>> {
   try {
-    // TODO: 从数据库获取统计信息
+    // 从 SeekDB 获取统计信息
+    const stats = await seekdbService.getKnowledgeStats();
+    const sourceTypes = await seekdbService.getSourceTypes();
+    
+    // 构建类型分布
+    const typeDistribution: Record<string, number> = {};
+    for (const st of sourceTypes) {
+      typeDistribution[st.sourceType] = st.count;
+    }
+    
     return {
       success: true,
       data: {
-        totalFiles: 0,
-        totalSize: 0,
-        tagCount: 0,
+        totalFiles: stats.totalDocuments,
+        totalSize: 0,  // SeekDB 不存储文件大小
+        tagCount: 0,   // TODO: 从 SeekDB 获取标签统计
         recentCount: 0,
         pendingCount: 0,
         lastIndexed: undefined,
         byExtension: {},
         byDomain: {},
-        byDocumentType: {},
-        typeDistribution: {
-          document: 0,
-          image: 0,
-          archive: 0,
-        },
+        byDocumentType: typeDistribution,
+        typeDistribution,
         topTags: [],
         recentlyIndexed: 0,
       },
