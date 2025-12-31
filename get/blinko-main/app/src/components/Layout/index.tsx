@@ -24,6 +24,7 @@ import { BarSearchInput } from './BarSearchInput';
 import { BlinkoNotification } from '@/components/BlinkoNotification';
 import { AiStore } from '@/store/aiStore';
 import { useLocation, useSearchParams, Link } from 'react-router-dom';
+import { ServiceStatus } from './ServiceStatus';
 
 export const SideBarItem = 'p-2 flex flex-row items-center cursor-pointer gap-2 hover:bg-hover rounded-xl !transition-all';
 
@@ -45,6 +46,23 @@ export const CommonLayout = observer(({ children, header }: { children?: React.R
   const base = RootStore.Get(BaseStore);
   const location = useLocation()
   const [searchParams] = useSearchParams()
+
+  // 检查是否是公共页面（不需要认证的页面）
+  const isPublicPage = 
+    location.pathname == '/signin' ||
+    location.pathname == '/quicknote' ||
+    location.pathname == '/quickai' ||
+    location.pathname == '/quicktool' ||
+    location.pathname == '/signup' ||
+    location.pathname == '/api-doc' ||
+    location.pathname == '/role-select' ||
+    location.pathname.includes('/share') ||
+    location.pathname == '/editor' ||
+    location.pathname == '/oauth-callback' ||
+    location.pathname.includes('/ai-share');
+
+  // 这些 hooks 内部会检查是否需要执行 API 调用
+  // hooks 必须无条件调用以遵守 React hooks 规则
   blinkoStore.use();
   user.use();
   base.useInitApp();
@@ -64,18 +82,7 @@ export const CommonLayout = observer(({ children, header }: { children?: React.R
 
   if (!isClient) return <></>;
 
-  if (
-    location.pathname == '/signin' ||
-    location.pathname == '/quicknote' ||
-    location.pathname == '/quickai' ||
-    location.pathname == '/quicktool' ||
-    location.pathname == '/signup' ||
-    location.pathname == '/api-doc' ||
-    location.pathname.includes('/share') ||
-    location.pathname == '/editor' ||
-    location.pathname == '/oauth-callback' ||
-    location.pathname.includes('/ai-share')
-  ) {
+  if (isPublicPage) {
     return <>{children}</>;
   }
 
@@ -175,6 +182,7 @@ export const CommonLayout = observer(({ children, header }: { children?: React.R
                     </div>
                   </Badge>
                 )}
+                <ServiceStatus />
               </div>
               <div className="flex items-center justify-center gap-2 md:gap-4 w-auto ">
                 <BarSearchInput isPc={isPc} />

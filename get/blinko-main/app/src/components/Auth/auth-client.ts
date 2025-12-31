@@ -61,6 +61,14 @@ export async function getTokenData(): Promise<TokenData | null> {
       return null;
     }
     
+    // 在 Tauri 环境中，如果 endpoint 未设置，直接返回本地存储的 token 数据
+    const isTauri = !!(window as any).__TAURI__;
+    const blinkoEndpoint = window.localStorage.getItem('blinkoEndpoint');
+    if (isTauri && !blinkoEndpoint) {
+      // 返回本地存储的 token 数据，不验证
+      return userStore.tokenData.value;
+    }
+    
     const response = await fetch(getBlinkoEndpoint('/api/auth/profile'), {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -74,9 +82,27 @@ export async function getTokenData(): Promise<TokenData | null> {
       return data;
     }
     
+    // 如果验证失败但有本地 token，在 Tauri 环境中仍然返回本地数据
+    // 这样用户可以继续使用，直到下次需要真正验证时
+    if (isTauri && userStore.tokenData.value) {
+      console.warn('Token validation failed, using cached token data');
+      return userStore.tokenData.value;
+    }
+    
     return null;
   } catch (error) {
     console.error('Failed to get token data:', error);
+    
+    // 在 Tauri 环境中，如果网络请求失败，返回本地存储的 token 数据
+    const isTauri = !!(window as any).__TAURI__;
+    if (isTauri) {
+      const userStore = RootStore.Get(UserStore);
+      if (userStore.tokenData.value) {
+        console.warn('Network error, using cached token data');
+        return userStore.tokenData.value;
+      }
+    }
+    
     return null;
   }
 }

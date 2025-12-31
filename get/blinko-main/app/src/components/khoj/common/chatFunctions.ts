@@ -1,0 +1,542 @@
+/**
+ * Khoj 对话功能工具
+ * 从 Khoj 源码移植，用于处理对话消息和文件上传
+ */
+
+import { getKhojBaseUrl } from '@/lib/khojService';
+
+// ============================================
+// 类型定义
+// ============================================
+
+export interface AttachedFileText {
+  name: string;
+  content: string;
+}
+
+export interface Context {
+  compiled: string;
+  file: string;
+  heading?: string;
+}
+
+export interface OnlineContext {
+  [key: string]: {
+    organic?: Array<{
+      title: string;
+      link: string;
+      snippet: string;
+    }>;
+    knowledgeGraph?: {
+      title: string;
+      description: string;
+    };
+    answerBox?: {
+      answer: string;
+      snippet: string;
+    };
+    webpages?: string;
+  };
+}
+
+export interface CodeContext {
+  [key: string]: {
+    code: string;
+    results?: {
+      output_files?: Array<{
+        filename: string;
+        b64_data: string;
+      }>;
+      stdout?: string;
+      stderr?: string;
+    };
+  };
+}
+
+export interface RawReferenceData {
+  context?: Context[];
+  onlineContext?: OnlineContext;
+  codeContext?: CodeContext;
+}
+
+export interface MessageMetadata {
+  conversationId: string;
+  turnId: string;
+}
+
+export interface GeneratedAssetsData {
+  images: string[];
+  mermaidjsDiagram: string;
+  files: AttachedFileText[];
+}
+
+export interface ResponseWithIntent {
+  intentType: string;
+  response: string;
+  inferredQueries?: string[];
+}
+
+export interface StreamMessage {
+  rawResponse: string;
+  trainOfThought: string[];
+  context?: Context[];
+  onlineContext?: OnlineContext;
+  codeContext?: CodeContext;
+  completed: boolean;
+  turnId?: string;
+  intentType?: string;
+  inferredQueries?: string[];
+  generatedImages?: string[];
+  generatedMermaidjsDiagram?: string;
+  generatedFiles?: AttachedFileText[];
+}
+
+interface MessageChunk {
+  type: string;
+  data: string | object;
+}
+
+// ============================================
+// 消息处理函数
+// ============================================
+
+/**
+ * 将消息块转换为 JSON 格式
+ */
+export function convertMessageChunkToJson(chunk: string): MessageChunk {
+  if (chunk.startsWith('{') && chunk.endsWith('}')) {
+    try {
+      const jsonChunk = JSON.parse(chunk);
+      if (!jsonChunk.type) {
+        return {
+          type: 'message',
+          data: jsonChunk,
+        };
+      }
+      return jsonChunk;
+    } catch {
+      return {
+        type: 'message',
+        data: chunk,
+      };
+    }
+  } else if (chunk.length > 0) {
+    return {
+      type: 'message',
+      data: chunk,
+    };
+  } else {
+    return {
+      type: 'message',
+      data: '',
+    };
+  }
+}
+
+/**
+ * 处理 JSON 响应
+ */
+function handleJsonResponse(chunkData: unknown): ResponseWithIntent {
+  const jsonData = chunkData as Record<string, unknown>;
+  
+  if (jsonData.image || jsonData.detail) {
+    return handleImageResponse(chunkData, true);
+  } else if (jsonData.response) {
+    return {
+      response: jsonData.response as string,
+      intentType: '',
+      inferredQueries: [],
+    };
+  } else {
+    throw new Error('Invalid JSON response');
+  }
+}
+
+/**
+ * 处理图片响应
+ */
+export function handleImageResponse(imageJson: unknown, _liveStream: boolean): ResponseWithIntent {
+  const json = imageJson as Record<string, unknown>;
+  let rawResponse = '';
+
+  if (json.image) {
+    rawResponse = json.image as string;
+  }
+
+  const responseWithIntent: ResponseWithIntent = {
+    intentType: json.intentType as string || '',
+    response: rawResponse,
+    inferredQueries: json.inferredQueries as string[] || [],
+  };
+
+  if (json.detail) {
+    rawResponse += json.detail as string;
+  }
+
+  return responseWithIntent;
+}
+
+/**
+ * 处理消息块
+ */
+export function processMessageChunk(
+  rawChunk: string,
+  currentMessage: StreamMessage,
+  context: Context[] = [],
+  onlineContext: OnlineContext = {},
+  codeContext: CodeContext = {},
+): { context: Context[]; onlineContext: OnlineContext; codeContext: CodeContext } {
+  const chunk = convertMessageChunkToJson(rawChunk);
+
+  if (!currentMessage || !chunk || !chunk.type) {
+    return { context, onlineContext, codeContext };
+  }
+
+  if (chunk.type === 'status') {
+    const statusMessage = chunk.data as string;
+    currentMessage.trainOfThought.push(statusMessage);
+  } else if (chunk.type === 'thought') {
+    const thoughtChunk = chunk.data as string;
+    const lastThoughtIndex = currentMessage.trainOfThought.length - 1;
+    const previousThought = lastThoughtIndex >= 0 
+      ? currentMessage.trainOfThought[lastThoughtIndex] 
+      : '';
+    
+    if (previousThought.startsWith('**Thinking:** ')) {
+      currentMessage.trainOfThought[lastThoughtIndex] += thoughtChunk;
+    } else {
+      currentMessage.trainOfThought.push(`**Thinking:** ${thoughtChunk}`);
+    }
+  } else if (chunk.type === 'references') {
+    const references = chunk.data as RawReferenceData;
+    if (references.context) context = references.context;
+    if (references.onlineContext) onlineContext = references.onlineContext;
+    if (references.codeContext) codeContext = references.codeContext;
+    return { context, onlineContext, codeContext };
+  } else if (chunk.type === 'metadata') {
+    const messageMetadata = chunk.data as MessageMetadata;
+    currentMessage.turnId = messageMetadata.turnId;
+  } else if (chunk.type === 'generated_assets') {
+    const generatedAssets = chunk.data as GeneratedAssetsData;
+    if (generatedAssets.images) {
+      currentMessage.generatedImages = generatedAssets.images;
+    }
+    if (generatedAssets.mermaidjsDiagram) {
+      currentMessage.generatedMermaidjsDiagram = generatedAssets.mermaidjsDiagram;
+    }
+    if (generatedAssets.files) {
+      currentMessage.generatedFiles = generatedAssets.files;
+    }
+  } else if (chunk.type === 'message') {
+    const chunkData = chunk.data;
+    
+    if (chunkData !== null && typeof chunkData === 'object') {
+      const responseWithIntent = handleJsonResponse(chunkData);
+      if (responseWithIntent.intentType === 'excalidraw') {
+        currentMessage.rawResponse = responseWithIntent.response;
+      } else {
+        currentMessage.rawResponse += responseWithIntent.response;
+      }
+      currentMessage.intentType = responseWithIntent.intentType;
+      currentMessage.inferredQueries = responseWithIntent.inferredQueries;
+    } else if (
+      typeof chunkData === 'string' &&
+      chunkData.trim()?.startsWith('{') &&
+      chunkData.trim()?.endsWith('}')
+    ) {
+      try {
+        const jsonData = JSON.parse(chunkData.trim());
+        const responseWithIntent = handleJsonResponse(jsonData);
+        currentMessage.rawResponse += responseWithIntent.response;
+        currentMessage.intentType = responseWithIntent.intentType;
+        currentMessage.inferredQueries = responseWithIntent.inferredQueries;
+      } catch {
+        currentMessage.rawResponse += JSON.stringify(chunkData);
+      }
+    } else {
+      currentMessage.rawResponse += chunkData;
+    }
+  } else if (chunk.type === 'end_response') {
+    if (codeContext) currentMessage.codeContext = codeContext;
+    if (onlineContext) currentMessage.onlineContext = onlineContext;
+    if (context) currentMessage.context = context;
+    currentMessage.completed = true;
+  }
+  
+  return { context, onlineContext, codeContext };
+}
+
+/**
+ * 渲染代码生成的图片
+ */
+export function renderCodeGenImageInline(message: string, codeContext: CodeContext) {
+  if (!codeContext) return message;
+
+  Object.values(codeContext).forEach((contextData) => {
+    contextData.results?.output_files?.forEach((file) => {
+      const regex = new RegExp(`!?\\[.*?\\]\\(.*${file.filename}\\)`, 'g');
+      if (file.filename.match(/\.(png|jpg|jpeg)$/i)) {
+        const replacement = `![${file.filename}](data:image/${file.filename.split('.').pop()};base64,${file.b64_data})`;
+        message = message.replace(regex, replacement);
+      } else if (file.filename.match(/\.(txt|org|md|csv|json)$/i)) {
+        const replacement = `![${file.filename}](data:text/plain;base64,${file.b64_data})`;
+        message = message.replace(regex, replacement);
+      }
+    });
+  });
+
+  return message;
+}
+
+// ============================================
+// API 调用函数
+// ============================================
+
+/**
+ * 创建新对话
+ */
+export async function createNewConversation(slug: string): Promise<string> {
+  const baseUrl = getKhojBaseUrl();
+  
+  try {
+    const response = await fetch(`${baseUrl}/api/chat/sessions?client=web&agent_slug=${slug}`, {
+      method: 'POST',
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to create conversation: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const conversationID = data.conversation_id;
+    
+    if (!conversationID) {
+      throw new Error('Conversation ID not found in response');
+    }
+    
+    return conversationID;
+  } catch (error) {
+    console.error('Error creating new conversation:', error);
+    throw error;
+  }
+}
+
+/**
+ * 生成对话标题
+ */
+export function generateNewTitle(
+  conversationId: string, 
+  setTitle: (title: string) => void
+) {
+  const baseUrl = getKhojBaseUrl();
+  
+  fetch(`${baseUrl}/api/chat/title?conversation_id=${conversationId}`, {
+    method: 'POST',
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error(`Failed to generate title: ${res.statusText}`);
+      return res.json();
+    })
+    .then((data) => {
+      setTitle(data.title);
+    })
+    .catch((err) => {
+      console.error('Error generating title:', err);
+    });
+}
+
+/**
+ * 打包文件用于上传
+ */
+export async function packageFilesForUpload(files: FileList): Promise<FormData> {
+  const formData = new FormData();
+
+  const fileReadPromises = Array.from(files).map((file) => {
+    return new Promise<void>((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = function (event) {
+        if (event.target === null) {
+          reject(new Error('FileReader target is null'));
+          return;
+        }
+
+        const fileContents = event.target.result;
+        let fileType = file.type;
+        const fileName = file.name;
+        
+        if (fileType === '') {
+          const fileExtension = fileName.split('.').pop()?.toLowerCase();
+          switch (fileExtension) {
+            case 'org':
+              fileType = 'text/org';
+              break;
+            case 'md':
+              fileType = 'text/markdown';
+              break;
+            case 'txt':
+            case 'tsx':
+            case 'ipynb':
+              fileType = 'text/plain';
+              break;
+            case 'html':
+              fileType = 'text/html';
+              break;
+            case 'pdf':
+              fileType = 'application/pdf';
+              break;
+            case 'docx':
+              fileType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+              break;
+            default:
+              console.warn(`File type not supported: ${fileName}`);
+              resolve();
+              return;
+          }
+        }
+
+        if (fileContents === null) {
+          console.warn(`Could not read file: ${fileName}`);
+          reject(new Error('File contents is null'));
+          return;
+        }
+
+        const fileObj = new Blob([fileContents], { type: fileType });
+        formData.append('files', fileObj, file.name);
+        resolve();
+      };
+      
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  });
+
+  await Promise.all(fileReadPromises);
+  return formData;
+}
+
+/**
+ * 上传文件进行索引
+ */
+export function uploadDataForIndexing(
+  files: FileList,
+  setWarning: (warning: string) => void,
+  setUploading: (uploading: boolean) => void,
+  setError: (error: string) => void,
+  setUploadedFiles?: (files: string[]) => void,
+) {
+  const baseUrl = getKhojBaseUrl();
+  const allowedExtensions = [
+    'text/org',
+    'text/markdown',
+    'text/plain',
+    'text/html',
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+  const allowedFileEndings = ['org', 'md', 'txt', 'html', 'pdf', 'docx'];
+  const badFiles: string[] = [];
+  const goodFiles: File[] = [];
+  const uploadedFiles: string[] = [];
+
+  for (const file of files) {
+    const fileEnding = file.name.split('.').pop()?.toLowerCase();
+    if (!file || !file.name || !fileEnding) {
+      if (file) badFiles.push(file.name);
+    } else if (
+      !allowedExtensions.includes(file.type) &&
+      !allowedFileEndings.includes(fileEnding)
+    ) {
+      badFiles.push(file.name);
+    } else {
+      goodFiles.push(file);
+    }
+  }
+
+  if (goodFiles.length === 0) {
+    setWarning('No supported files found');
+    return;
+  }
+
+  if (badFiles.length > 0) {
+    setWarning('The following files are not supported:\n' + badFiles.join('\n'));
+  }
+
+  const formData = new FormData();
+
+  const fileReadPromises = goodFiles.map((file) => {
+    return new Promise<void>((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = function (event) {
+        if (event.target === null) {
+          reject(new Error('FileReader target is null'));
+          return;
+        }
+
+        const fileContents = event.target.result;
+        let fileType = file.type;
+        const fileName = file.name;
+        
+        if (fileType === '') {
+          const fileExtension = fileName.split('.').pop()?.toLowerCase();
+          switch (fileExtension) {
+            case 'org':
+              fileType = 'text/org';
+              break;
+            case 'md':
+              fileType = 'text/markdown';
+              break;
+            case 'txt':
+              fileType = 'text/plain';
+              break;
+            case 'html':
+              fileType = 'text/html';
+              break;
+            case 'pdf':
+              fileType = 'application/pdf';
+              break;
+            default:
+              resolve();
+              return;
+          }
+        }
+
+        if (fileContents === null) {
+          reject(new Error('File contents is null'));
+          return;
+        }
+
+        const fileObj = new Blob([fileContents], { type: fileType });
+        formData.append('files', fileObj, file.name);
+        resolve();
+      };
+      
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  });
+
+  setUploading(true);
+
+  Promise.all(fileReadPromises)
+    .then(() => {
+      return fetch(`${baseUrl}/api/content?client=web`, {
+        method: 'PATCH',
+        body: formData,
+      });
+    })
+    .then(() => {
+      for (const file of goodFiles) {
+        uploadedFiles.push(file.name);
+      }
+      if (setUploadedFiles) setUploadedFiles(uploadedFiles);
+    })
+    .catch((error) => {
+      console.error('Upload error:', error);
+      setError(`Error uploading file: ${error}`);
+    })
+    .finally(() => {
+      setUploading(false);
+    });
+}

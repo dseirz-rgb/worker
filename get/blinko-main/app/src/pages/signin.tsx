@@ -56,7 +56,9 @@ export default function Component() {
   const SignIn = new PromiseState({
     function: async () => {
       try {
-        if (isTauriEnv) {
+        // 在 Tauri 环境中，先保存 endpoint，再重新初始化 API
+        if (isTauriEnv && endpoint) {
+          saveBlinkoEndpoint(endpoint);
           reinitializeTrpcApi();
         }
         const res = await signIn('credentials', {
@@ -71,6 +73,9 @@ export default function Component() {
         }
 
         if (res?.ok) {
+          // 登录成功后重新初始化 API 以确保 token 被正确使用
+          reinitializeTrpcApi();
+          // 登录成功后直接跳转到首页，跳过 role-select
           navigate('/');
         }
 
@@ -111,13 +116,10 @@ export default function Component() {
 
   const login = async () => {
     try {
+      // endpoint 已经在 SignIn.call() 中保存了
       await SignIn.call();
       userStorage.setValue(user);
       passwordStorage.setValue(password);
-
-      if (isTauriEnv && endpoint) {
-        saveBlinkoEndpoint(endpoint);
-      }
     } catch (error) {
       console.error('Login error:', error);
       RootStore.Get(ToastPlugin).error(t('login-failed'));

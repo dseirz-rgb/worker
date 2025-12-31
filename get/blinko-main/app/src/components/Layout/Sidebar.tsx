@@ -113,6 +113,20 @@ export const Sidebar = observer(({ onItemClick }: SidebarProps) => {
         </div>
       </ScrollShadow>
 
+      {/* 切换角色按钮 */}
+      <div className={`mt-auto pt-4 ${base.isSidebarCollapsed ? 'flex justify-center' : ''}`}>
+        <Link
+          to="/role-select"
+          onClick={() => onItemClick?.()}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all
+            hover:bg-primary/10 text-foreground/70 hover:text-primary
+            ${base.isSidebarCollapsed ? 'justify-center' : ''}`}
+        >
+          <Icon icon="mdi:account-switch" width="20" height="20" />
+          {!base.isSidebarCollapsed && <span className="text-sm font-medium">切换角色</span>}
+        </Link>
+      </div>
+
       {/* ***** background *****  */}
       <div className="halation absolute inset-0 h-[250px] w-[250px] overflow-hidden blur-3xl z-[0] pointer-events-none">
         <div className="w-full h-[100%] bg-[#ffc65c] opacity-20" style={{ clipPath: 'circle(35% at 50% 50%)' }} />

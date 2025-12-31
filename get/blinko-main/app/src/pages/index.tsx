@@ -26,6 +26,10 @@ const Home = observer(() => {
   const { t } = useTranslation();
   const isPc = useMediaQuery('(min-width: 768px)')
   const blinko = RootStore.Get(BlinkoStore)
+  
+  // 调试日志
+  console.log('[Home] Rendering, blinko.config.value:', blinko.config.value);
+  
   blinko.use()
   blinko.useQuery();
   const [searchParams] = useSearchParams();
@@ -39,6 +43,7 @@ const Home = observer(() => {
   const [isDragForbidden, setIsDragForbidden] = useState<boolean>(false);
 
   const currentListState = useMemo(() => {
+    console.log('[Home] currentListState memo, isNotesView:', isNotesView, 'isTodoView:', isTodoView);
     if (isNotesView) {
       return blinko.noteOnlyList;
     } else if (isTodoView) {
@@ -50,6 +55,7 @@ const Home = observer(() => {
     } else if (isAllView) {
       return blinko.noteList;
     } else {
+      console.log('[Home] Using blinkoList, value:', blinko.blinkoList.value?.length, 'isLoading:', blinko.blinkoList.isLoading, 'isEmpty:', blinko.blinkoList.isEmpty);
       return blinko.blinkoList;
     }
   }, [isNotesView, isTodoView, isArchivedView, isTrashView, isAllView, blinko]);

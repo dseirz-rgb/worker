@@ -35,7 +35,7 @@ export default function OAuthCallback() {
       const res = await signIn('oauth-2fa', {
         userId: userId,
         twoFactorCode: code,
-        callbackUrl: '/',
+        callbackUrl: '/role-select',
         redirect: false,
       });
 
@@ -46,7 +46,7 @@ export default function OAuthCallback() {
           eventBus.emit('user:token', tokenData);
         }
         RootStore.Get(DialogStore).close();
-        navigate('/');
+        navigate('/role-select');
       } else {
         eventBus.emit('user:twoFactorResult', {
           success: false,
@@ -114,7 +114,7 @@ export default function OAuthCallback() {
 
               const userData = await getTokenData();
               if (userData && userData.user && userData.user.id) {
-                navigate('/');
+                navigate('/role-select');
               } else {
                 setError(t('login-failed'));
                 setShowReturnButton(true);
@@ -131,7 +131,7 @@ export default function OAuthCallback() {
           } else {
             const tokenData = await getTokenData();
             if (tokenData?.user) {
-              navigate('/');
+              navigate('/role-select');
             } else {
               setError(t('login-failed'));
               setShowReturnButton(true);
@@ -147,7 +147,7 @@ export default function OAuthCallback() {
         if (tokenData?.requiresTwoFactor) {
           ShowTwoFactorModal(handleTwoFactorAuth, false);
         } else if (tokenData?.user) {
-          navigate('/');
+          navigate('/role-select');
         } else {
           setError(t('login-failed'));
           setShowReturnButton(true);

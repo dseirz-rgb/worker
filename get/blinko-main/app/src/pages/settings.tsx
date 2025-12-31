@@ -14,6 +14,10 @@ import { ExportSetting } from '@/components/BlinkoSettings/ExportSetting';
 import { MusicSetting } from '@/components/BlinkoSettings/MusicSetting';
 import { SSOSetting } from '@/components/BlinkoSettings/SSOSetting';
 import { HttpProxySetting } from '@/components/BlinkoSettings/HttpProxySetting';
+import { PaperlessSetting } from '@/components/BlinkoSettings/PaperlessSetting';
+import { JanitorSetting } from '@/components/BlinkoSettings/JanitorSetting';
+import { KhojSetting } from '@/components/BlinkoSettings/KhojSetting';
+import { DataFlowGuide } from '@/components/BlinkoSettings/DataFlowGuide';
 import { useTranslation } from 'react-i18next';
 import { JSX } from 'react';
 import { ScrollableTabs, TabItem } from '@/components/Common/ScrollableTabs';
@@ -100,6 +104,38 @@ export const allSettings: SettingItem[] = [
     keywords: ['storage', 'database', '存储', '数据库'],
   },
   {
+    key: 'paperless',
+    title: ('file-management'),
+    icon: 'solar:folder-with-files-bold-duotone',
+    component: <PaperlessSetting />,
+    requireAdmin: true,
+    keywords: ['paperless', 'files', 'documents', 'ocr', '文件管理', '文档', 'OCR'],
+  },
+  {
+    key: 'janitor',
+    title: 'AI 文件整理',
+    icon: 'solar:magic-stick-3-bold-duotone',
+    component: <JanitorSetting />,
+    requireAdmin: true,
+    keywords: ['janitor', 'ai', 'organize', 'classify', '整理', '分类', '重命名', 'llama'],
+  },
+  {
+    key: 'khoj',
+    title: 'Khoj AI',
+    icon: 'mdi:robot-outline',
+    component: <KhojSetting />,
+    requireAdmin: true,
+    keywords: ['khoj', 'ai', 'assistant', 'knowledge', 'search', 'AI助手', '知识检索', '语义搜索'],
+  },
+  {
+    key: 'dataflow',
+    title: '数据处理流程',
+    icon: 'solar:routing-2-bold-duotone',
+    component: null, // 将在 Page 组件中动态设置
+    requireAdmin: true,
+    keywords: ['dataflow', 'flow', 'pipeline', '数据流', '流程', '处理', 'echo', 'seekdb', 'janitor'],
+  },
+  {
     key: 'music',
     title: ('music-settings'),
     icon: 'tabler:music',
@@ -183,7 +219,14 @@ const Page = observer(() => {
 
   const getCurrentComponent = () => {
     const setting = allSettings.find((s) => s.key === selected);
-    return setting ? <div key={setting.key}>{setting.component}</div> : null;
+    if (!setting) return null;
+    
+    // 特殊处理 dataflow，传递 onNavigate 回调
+    if (setting.key === 'dataflow') {
+      return <div key={setting.key}><DataFlowGuide onNavigate={setSelected} /></div>;
+    }
+    
+    return setting.component ? <div key={setting.key}>{setting.component}</div> : null;
   };
 
   const tabItems: TabItem[] = getVisibleSettings().map((setting) => ({
