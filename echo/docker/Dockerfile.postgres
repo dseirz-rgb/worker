@@ -1,0 +1,15 @@
+# PostgreSQL with Chinese Full-Text Search Support
+# 基于 postgres:14，添加中文搜索支持
+#
+# 策略：使用 pg_trgm + GIN 索引实现中文模糊搜索
+# 这比 pg_jieba 更简单可靠，对中文效果也很好
+
+FROM postgres:14
+
+# 复制初始化脚本
+COPY scripts/init-postgres.sql /docker-entrypoint-initdb.d/01-init.sql
+
+# 设置默认配置
+ENV POSTGRES_DB=blinko
+ENV POSTGRES_USER=postgres
+ENV POSTGRES_PASSWORD=mysecretpassword

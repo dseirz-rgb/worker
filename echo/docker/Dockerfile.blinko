@@ -1,0 +1,37 @@
+# Echo Blinko UI Dockerfile
+
+FROM oven/bun:1.2.8 AS builder
+
+WORKDIR /app
+
+# 复制 package 文件
+COPY package.json bun.lock* ./
+COPY app/package.json ./app/
+COPY server/package.json ./server/
+COPY shared/package.json ./shared/
+
+# 安装依赖
+RUN bun install
+
+# 复制源代码
+COPY . .
+
+# 构建
+RUN bun run build:web
+
+# ============ 运行阶段 ============
+FROM oven/bun:1.2.8-slim
+
+WORKDIR /app
+
+# 复制构建产物
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/server ./server
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+
+# 暴露端口
+EXPOSE 1111
+
+# 启动命令
+CMD ["bun", "run", "start:server:production"]

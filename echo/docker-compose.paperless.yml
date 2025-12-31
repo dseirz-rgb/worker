@@ -1,0 +1,114 @@
+# Paperless-ngx Docker Compose 配置
+# 来源: https://github.com/paperless-ngx/paperless-ngx
+# 许可证: GPL-3.0
+# 修改说明: 适配 Echo 项目，添加中文 OCR 支持
+
+services:
+  # Redis - 任务队列
+  paperless-broker:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:7-alpine
+    container_name: echo-paperless-broker
+    restart: unless-stopped
+    volumes:
+      - paperless_redis:/data
+    networks:
+      - echo-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # PostgreSQL - 数据库
+  paperless-db:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/postgres:15-alpine
+    container_name: echo-paperless-db
+    restart: unless-stopped
+    volumes:
+      - paperless_pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD:-paperless_secret}
+    networks:
+      - echo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Paperless-ngx - 主服务
+  paperless:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: echo-paperless
+    restart: unless-stopped
+    depends_on:
+      paperless-db:
+        condition: service_healthy
+      paperless-broker:
+        condition: service_healthy
+    ports:
+      - "${PAPERLESS_PORT:-8000}:8000"
+    volumes:
+      - paperless_data:/usr/src/paperless/data
+      - paperless_media:/usr/src/paperless/media
+      - paperless_export:/usr/src/paperless/export
+      - paperless_consume:/usr/src/paperless/consume
+    environment:
+      # 数据库配置
+      PAPERLESS_REDIS: redis://paperless-broker:6379
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD:-paperless_secret}
+      
+      # 安全配置
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:-change-me-in-production-use-random-string}
+      
+      # 时区和语言
+      PAPERLESS_TIME_ZONE: ${PAPERLESS_TIME_ZONE:-Asia/Shanghai}
+      PAPERLESS_OCR_LANGUAGE: ${PAPERLESS_OCR_LANGUAGE:-eng}
+      
+      # 管理员账户
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-admin}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:-admin}
+      
+      # API 配置
+      PAPERLESS_URL: ${PAPERLESS_URL:-http://localhost:8000}
+      
+      # 性能优化
+      PAPERLESS_TASK_WORKERS: ${PAPERLESS_TASK_WORKERS:-2}
+      PAPERLESS_THREADS_PER_WORKER: ${PAPERLESS_THREADS_PER_WORKER:-1}
+      
+      # 文件处理
+      PAPERLESS_CONSUMER_POLLING: 30
+      PAPERLESS_CONSUMER_DELETE_DUPLICATES: "true"
+      PAPERLESS_CONSUMER_RECURSIVE: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - echo-network
+
+volumes:
+  paperless_redis:
+    name: echo_paperless_redis
+  paperless_pgdata:
+    name: echo_paperless_pgdata
+  paperless_data:
+    name: echo_paperless_data
+  paperless_media:
+    name: echo_paperless_media
+  paperless_export:
+    name: echo_paperless_export
+  paperless_consume:
+    name: echo_paperless_consume
+
+networks:
+  echo-network:
+    name: echo-network
+    driver: bridge
