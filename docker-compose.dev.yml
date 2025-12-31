@@ -1,0 +1,305 @@
+# Echo 开发环境 - 统一服务编排
+# 一键启动所有服务：Blinko UI + SeekDB + Janitor + Khoj + Paperless
+#
+# 使用方法：
+#   docker-compose -f docker-compose.dev.yml up -d
+#
+# 访问：
+#   - Blinko UI: http://localhost:1111
+#   - SeekDB API: http://localhost:8765
+#   - Janitor API: http://localhost:8766
+#   - Khoj AI: http://localhost:42110
+#   - Paperless: http://localhost:8000
+
+services:
+  # ============================================================
+  # 核心数据库服务
+  # ============================================================
+  
+  # Blinko PostgreSQL (带 pgvector)
+  blinko-postgres:
+    image: pgvector/pgvector:pg15
+    container_name: blinko-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=blinko
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mysecretpassword}
+    volumes:
+      - blinko_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d blinko"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - echo-network
+
+  # Khoj PostgreSQL (带 pgvector)
+  khoj-postgres:
+    image: pgvector/pgvector:pg15
+    container_name: khoj-postgres
+    environment:
+      - POSTGRES_DB=khoj
+      - POSTGRES_USER=khoj
+      - POSTGRES_PASSWORD=khoj123
+    volumes:
+      - khoj_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U khoj -d khoj"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - echo-network
+
+  # SeekDB 向量数据库
+  seekdb:
+    image: oceanbase/seekdb:latest
+    container_name: echo-seekdb
+    environment:
+      - MYSQL_ROOT_PASSWORD=${SEEKDB_PASSWORD:-}
+    volumes:
+      - seekdb_data:/home/admin/oceanbase/store
+    healthcheck:
+      test: ["CMD", "mysql", "-h", "127.0.0.1", "-P", "2881", "-u", "root", "-e", "SELECT 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+    networks:
+      - echo-network
+
+  # ============================================================
+  # Paperless 文档管理
+  # ============================================================
+  
+  paperless-broker:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:7-alpine
+    container_name: echo-paperless-broker
+    restart: unless-stopped
+    volumes:
+      - paperless_redis:/data
+    networks:
+      - echo-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  paperless-db:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/postgres:15-alpine
+    container_name: echo-paperless-db
+    restart: unless-stopped
+    volumes:
+      - paperless_pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD:-paperless_secret}
+    networks:
+      - echo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  paperless:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: echo-paperless
+    restart: unless-stopped
+    depends_on:
+      paperless-db:
+        condition: service_healthy
+      paperless-broker:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - paperless_data:/usr/src/paperless/data
+      - paperless_media:/usr/src/paperless/media
+      - paperless_export:/usr/src/paperless/export
+      - paperless_consume:/usr/src/paperless/consume
+    environment:
+      PAPERLESS_REDIS: redis://paperless-broker:6379
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD:-paperless_secret}
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:-change-me-in-production}
+      PAPERLESS_TIME_ZONE: ${PAPERLESS_TIME_ZONE:-Asia/Shanghai}
+      PAPERLESS_OCR_LANGUAGE: ${PAPERLESS_OCR_LANGUAGE:-eng}
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-admin}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:-admin}
+      PAPERLESS_URL: ${PAPERLESS_URL:-http://localhost:8000}
+      PAPERLESS_TASK_WORKERS: 2
+      PAPERLESS_THREADS_PER_WORKER: 1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - echo-network
+
+  # ============================================================
+  # SeekDB API 服务
+  # ============================================================
+  
+  seekdb-api:
+    build:
+      context: ./echo/sidecar
+      dockerfile: Dockerfile
+    container_name: echo-seekdb-api
+    ports:
+      - "8765:8765"
+    environment:
+      - SEEKDB_HOST=seekdb
+      - SEEKDB_PORT=2881
+      - SEEKDB_USER=root
+      - SEEKDB_PASSWORD=${SEEKDB_PASSWORD:-}
+      - SEEKDB_DATABASE=echo
+      - API_PORT=8765
+    volumes:
+      - seekdb_storage:/app/storage
+    depends_on:
+      seekdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - echo-network
+
+  # ============================================================
+  # Janitor AI 整理服务
+  # ============================================================
+  
+  janitor:
+    build:
+      context: ./echo/sidecar/janitor
+      dockerfile: ../../../echo/docker/Dockerfile.janitor
+    container_name: echo-janitor
+    ports:
+      - "8766:8000"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - SEEKDB_API_URL=http://seekdb-api:8765
+      - SEEKDB_AUTO_INDEX=true
+    volumes:
+      - ${INBOX_PATH:-./inbox}:/data/inbox
+      - janitor_logs:/app/logs
+    depends_on:
+      seekdb-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - echo-network
+
+  # ============================================================
+  # Khoj AI 助手
+  # ============================================================
+  
+  khoj:
+    image: ghcr.io/khoj-ai/khoj:latest
+    container_name: blinko-khoj
+    ports:
+      - "42110:42110"
+    environment:
+      - POSTGRES_HOST=khoj-postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=khoj
+      - POSTGRES_USER=khoj
+      - POSTGRES_PASSWORD=khoj123
+      - KHOJ_ADMIN_EMAIL=${KHOJ_ADMIN_EMAIL:-admin@echo.local}
+      - KHOJ_ADMIN_PASSWORD=${KHOJ_ADMIN_PASSWORD:-echo123}
+      - KHOJ_DJANGO_SECRET_KEY=${KHOJ_DJANGO_SECRET_KEY:-echo-khoj-secret-key}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - KHOJ_ANONYMOUS_MODE=true
+    volumes:
+      - khoj_data:/root/.khoj
+      - khoj_models:/root/.cache/huggingface
+    depends_on:
+      khoj-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:42110/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: --host="0.0.0.0" --port=42110 --non-interactive --anonymous-mode
+    networks:
+      - echo-network
+
+# ============================================================
+# 数据卷
+# ============================================================
+
+volumes:
+  # Blinko
+  blinko_postgres_data:
+    name: echo_blinko_postgres_data
+  
+  # Khoj
+  khoj_postgres_data:
+    name: echo_khoj_postgres_data
+  khoj_data:
+    name: echo_khoj_data
+  khoj_models:
+    name: echo_khoj_models
+  
+  # SeekDB
+  seekdb_data:
+    name: echo_seekdb_data
+  seekdb_storage:
+    name: echo_seekdb_storage
+  
+  # Janitor
+  janitor_logs:
+    name: echo_janitor_logs
+  
+  # Paperless
+  paperless_redis:
+    name: echo_paperless_redis
+  paperless_pgdata:
+    name: echo_paperless_pgdata
+  paperless_data:
+    name: echo_paperless_data
+  paperless_media:
+    name: echo_paperless_media
+  paperless_export:
+    name: echo_paperless_export
+  paperless_consume:
+    name: echo_paperless_consume
+
+# ============================================================
+# 网络
+# ============================================================
+
+networks:
+  echo-network:
+    name: echo-network
+    driver: bridge

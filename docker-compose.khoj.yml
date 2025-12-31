@@ -1,0 +1,72 @@
+# Khoj AI 服务 Docker 配置
+# 用于在本地运行 Khoj AI 助手服务
+#
+# 启动命令: docker-compose -f docker-compose.khoj.yml up -d
+# 停止命令: docker-compose -f docker-compose.khoj.yml down
+# 查看日志: docker-compose -f docker-compose.khoj.yml logs -f
+
+services:
+  # PostgreSQL 数据库 (带 pgvector 扩展)
+  khoj-db:
+    image: pgvector/pgvector:pg15
+    container_name: khoj-postgres
+    environment:
+      - POSTGRES_DB=khoj
+      - POSTGRES_USER=khoj
+      - POSTGRES_PASSWORD=khoj123
+    volumes:
+      - khoj_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U khoj -d khoj"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Khoj AI 服务
+  khoj:
+    image: ghcr.io/khoj-ai/khoj:latest
+    container_name: blinko-khoj
+    ports:
+      - "42110:42110"
+    environment:
+      # 数据库配置
+      - POSTGRES_HOST=khoj-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=khoj
+      - POSTGRES_USER=khoj
+      - POSTGRES_PASSWORD=khoj123
+      # Khoj 管理员配置
+      - KHOJ_ADMIN_EMAIL=${KHOJ_ADMIN_EMAIL:-admin@echo.local}
+      - KHOJ_ADMIN_PASSWORD=${KHOJ_ADMIN_PASSWORD:-echo123}
+      # Django 密钥
+      - KHOJ_DJANGO_SECRET_KEY=${KHOJ_DJANGO_SECRET_KEY:-echo-khoj-secret-key-change-in-production}
+      # AI 模型配置
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Ollama 配置 (本地模型)
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # 禁用匿名模式，需要登录
+      - KHOJ_ANONYMOUS_MODE=false
+    volumes:
+      - khoj_data:/root/.khoj
+    depends_on:
+      khoj-db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:42110/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # 绑定到 0.0.0.0 以允许外部访问
+    command: --host="0.0.0.0" --port=42110 --non-interactive
+
+volumes:
+  khoj_data:
+    name: echo_khoj_data
+  khoj_postgres_data:
+    name: echo_khoj_postgres_data
