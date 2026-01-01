@@ -44,7 +44,6 @@ interface JanitorFullConfig {
   output_base: string;
   confidence_threshold: number;
   categories: Record<string, CategoryConfig>;
-  seekdb: { auto_index: boolean };
 }
 
 // ============ 子组件 ============

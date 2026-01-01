@@ -1,77 +1,238 @@
 /**
- * 日报路由 - Echo on Blinko 扩展
- * 提供日报生成和查询功能
+ * Echo v3.2: 日报 tRPC 路由
+ * 提供日报生成、查询和设置管理功能
  */
 
-import { router, authProcedure } from '../middleware';
+import { authProcedure, router } from '@server/middleware';
 import { z } from 'zod';
-import { DailyReportJob } from '../jobs/dailyReportJob';
+import { prisma } from '../prisma';
+import {
+  generateDailyReport,
+  getDailyReport,
+  listDailyReports,
+  ReportType,
+  createReportScheduler,
+} from '../aiServer/reportGenerator';
+import { startOfDay } from 'date-fns';
 
 export const dailyReportRouter = router({
   /**
-   * 手动生成今日日报
+   * 生成日报
+   * @param type - 日报类型: 'morning' | 'evening'
+   * @param date - 日期 (可选，默认今天)
    */
   generate: authProcedure
-    .mutation(async ({ ctx }) => {
-      const content = await DailyReportJob.generateForUser(Number(ctx.id));
-      return { success: true, content };
+    .input(
+      z.object({
+        type: z.enum(['morning', 'evening']),
+        date: z.date().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { type, date = new Date() } = input;
+      const accountId = Number(ctx.id);
+
+      const { report, content } = await generateDailyReport(accountId, type, date);
+
+      // 发送通知
+      await prisma.notifications.create({
+        data: {
+          type: 'report',
+          title: type === 'morning' ? '早报已生成' : '晚报已生成',
+          content: content.summary,
+          actionUrl: `/daily-report/${type}/${report.date.toISOString().split('T')[0]}`,
+          accountId,
+        },
+      });
+
+      return { success: true, report, content };
     }),
 
   /**
-   * 触发定时任务立即执行 (管理员)
+   * 获取指定日期的日报
    */
-  triggerNow: authProcedure
-    .mutation(async () => {
-      const jobId = await DailyReportJob.TriggerNow();
-      return { success: true, jobId };
+  get: authProcedure
+    .input(
+      z.object({
+        type: z.enum(['morning', 'evening']),
+        date: z.date(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      const { type, date } = input;
+      const accountId = Number(ctx.id);
+
+      const report = await getDailyReport(accountId, type, date);
+      return report;
     }),
 
   /**
-   * 获取任务调度状态
+   * 获取日报列表
    */
-  getStatus: authProcedure
-    .query(async () => {
-      const isScheduled = await DailyReportJob.isScheduled();
-      const schedule = await DailyReportJob.getSchedule();
-      return { 
-        isScheduled, 
-        schedule: schedule?.cron || null,
-        taskName: 'dailyReport'
-      };
+  list: authProcedure
+    .input(
+      z.object({
+        type: z.enum(['morning', 'evening', 'all']).optional().default('all'),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        limit: z.number().min(1).max(100).optional().default(10),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      const accountId = Number(ctx.id);
+      const reports = await listDailyReports(accountId, input);
+      return reports;
     }),
 
   /**
-   * 更新调度时间
+   * 获取日报设置
    */
-  updateSchedule: authProcedure
-    .input(z.object({
-      cronTime: z.string().regex(/^(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)$/, 
-        '无效的 cron 表达式')
-    }))
-    .mutation(async ({ input }) => {
-      await DailyReportJob.SetCronTime(input.cronTime);
-      return { success: true, cronTime: input.cronTime };
-    }),
+  getSettings: authProcedure.query(async ({ ctx }) => {
+    const accountId = Number(ctx.id);
+
+    // 从 userPreference 获取日报设置
+    const settings = await prisma.userPreference.findMany({
+      where: {
+        accountId,
+        category: 'report',
+      },
+    });
+
+    // 转换为对象格式
+    const settingsMap: Record<string, string> = {};
+    settings.forEach(s => {
+      settingsMap[s.key] = s.value;
+    });
+
+    return {
+      morningReportTime: settingsMap['morningReportTime'] || '08:00',
+      eveningReportTime: settingsMap['eveningReportTime'] || '21:00',
+      morningReportEnabled: settingsMap['morningReportEnabled'] !== 'false',
+      eveningReportEnabled: settingsMap['eveningReportEnabled'] !== 'false',
+      notificationEnabled: settingsMap['notificationEnabled'] !== 'false',
+    };
+  }),
 
   /**
-   * 启动日报任务
+   * 更新日报设置
    */
-  start: authProcedure
-    .input(z.object({
-      cronTime: z.string().optional(),
-      immediate: z.boolean().optional().default(false)
-    }))
-    .mutation(async ({ input }) => {
-      await DailyReportJob.Start(input.cronTime, input.immediate);
+  updateSettings: authProcedure
+    .input(
+      z.object({
+        morningReportTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+        eveningReportTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+        morningReportEnabled: z.boolean().optional(),
+        eveningReportEnabled: z.boolean().optional(),
+        notificationEnabled: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const accountId = Number(ctx.id);
+
+      // 更新各个设置项
+      const updates: Array<{ key: string; value: string }> = [];
+      
+      if (input.morningReportTime !== undefined) {
+        updates.push({ key: 'morningReportTime', value: input.morningReportTime });
+      }
+      if (input.eveningReportTime !== undefined) {
+        updates.push({ key: 'eveningReportTime', value: input.eveningReportTime });
+      }
+      if (input.morningReportEnabled !== undefined) {
+        updates.push({ key: 'morningReportEnabled', value: String(input.morningReportEnabled) });
+      }
+      if (input.eveningReportEnabled !== undefined) {
+        updates.push({ key: 'eveningReportEnabled', value: String(input.eveningReportEnabled) });
+      }
+      if (input.notificationEnabled !== undefined) {
+        updates.push({ key: 'notificationEnabled', value: String(input.notificationEnabled) });
+      }
+
+      // 批量 upsert
+      await Promise.all(
+        updates.map(({ key, value }) =>
+          prisma.userPreference.upsert({
+            where: {
+              accountId_category_key: {
+                accountId,
+                category: 'report',
+                key,
+              },
+            },
+            update: { value },
+            create: {
+              accountId,
+              category: 'report',
+              key,
+              value,
+              source: 'explicit',
+            },
+          })
+        )
+      );
+
+      // 同步调度设置
+      const scheduler = createReportScheduler(accountId);
+      await scheduler.syncScheduleFromSettings();
+
       return { success: true };
     }),
 
   /**
-   * 停止日报任务
+   * 获取今日日报状态
+   * 返回今日早报和晚报是否已生成
    */
-  stop: authProcedure
-    .mutation(async () => {
-      await DailyReportJob.Stop();
-      return { success: true };
-    }),
+  getTodayStatus: authProcedure.query(async ({ ctx }) => {
+    const accountId = Number(ctx.id);
+    const today = startOfDay(new Date());
+
+    const [morningReport, eveningReport] = await Promise.all([
+      prisma.dailyReport.findUnique({
+        where: {
+          type_date_accountId: {
+            type: 'morning',
+            date: today,
+            accountId,
+          },
+        },
+        select: { id: true, generatedAt: true },
+      }),
+      prisma.dailyReport.findUnique({
+        where: {
+          type_date_accountId: {
+            type: 'evening',
+            date: today,
+            accountId,
+          },
+        },
+        select: { id: true, generatedAt: true },
+      }),
+    ]);
+
+    return {
+      morning: morningReport ? { generated: true, generatedAt: morningReport.generatedAt } : { generated: false },
+      evening: eveningReport ? { generated: true, generatedAt: eveningReport.generatedAt } : { generated: false },
+    };
+  }),
+
+  /**
+   * 获取调度状态
+   * 返回早报和晚报的调度启用状态
+   */
+  getScheduleStatus: authProcedure.query(async ({ ctx }) => {
+    const accountId = Number(ctx.id);
+    const scheduler = createReportScheduler(accountId);
+    return scheduler.getScheduleStatus();
+  }),
+
+  /**
+   * 初始化日报调度
+   * 根据用户设置创建调度任务
+   */
+  initSchedule: authProcedure.mutation(async ({ ctx }) => {
+    const accountId = Number(ctx.id);
+    const scheduler = createReportScheduler(accountId);
+    await scheduler.syncScheduleFromSettings();
+    return { success: true };
+  }),
 });

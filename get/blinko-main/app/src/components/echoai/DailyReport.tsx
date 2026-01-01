@@ -2,9 +2,10 @@
  * DailyReport 组件 - 日报显示和管理
  * 
  * 功能：
- * - 显示今日日报内容
+ * - 显示早报/晚报内容
  * - 手动触发生成日报
  * - 配置日报生成时间
+ * - 显示历史日报列表
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -21,33 +22,63 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-  Select,
-  SelectItem,
+  Input,
+  Switch,
+  Tabs,
+  Tab,
 } from '@heroui/react';
 import { Icon } from '@/components/Common/Iconify/icons';
 import { api } from '@/lib/trpc';
 import { RootStore } from '@/store';
 import { ToastPlugin } from '@/store/module/Toast/Toast';
-import { MarkdownRender } from '@/components/Common/MarkdownRender';
+import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 
 // ============================================
 // 类型定义
 // ============================================
 
-interface DailyReportStatus {
-  isScheduled: boolean;
-  schedule: string | null;
-  taskName: string;
+type ReportType = 'morning' | 'evening';
+
+interface ReportContent {
+  summary: string;
+  tasks: {
+    total: number;
+    completed: number;
+    pending: number;
+    overdue: number;
+    topPriority: Array<{ id: number; content: string; isTop: boolean }>;
+  };
+  notes: {
+    count: number;
+    tags: string[];
+    highlights: string[];
+  };
+  suggestions: Array<{
+    type: string;
+    content: string;
+    priority: string;
+  }>;
+  greeting?: string;
+  activities?: {
+    totalDuration: number;
+    topDomains: Array<{ name: string; duration: number }>;
+    productiveTime: number;
+  };
 }
 
-// 预设时间选项
-const TIME_OPTIONS = [
-  { key: '0 12 * * *', label: '每天 20:00 (UTC+8)' },
-  { key: '0 13 * * *', label: '每天 21:00 (UTC+8)' },
-  { key: '0 14 * * *', label: '每天 22:00 (UTC+8)' },
-  { key: '0 1 * * *', label: '每天 09:00 (UTC+8)' },
-  { key: '0 10 * * *', label: '每天 18:00 (UTC+8)' },
-];
+interface TodayStatus {
+  morning: { generated: boolean; generatedAt?: Date };
+  evening: { generated: boolean; generatedAt?: Date };
+}
+
+interface ReportSettings {
+  morningReportTime: string;
+  eveningReportTime: string;
+  morningReportEnabled: boolean;
+  eveningReportEnabled: boolean;
+  notificationEnabled: boolean;
+}
 
 // ============================================
 // 组件
@@ -57,117 +88,194 @@ export function DailyReport() {
   const toast = RootStore.Get(ToastPlugin);
 
   // 状态
-  const [status, setStatus] = useState<DailyReportStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<ReportType>('morning');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [selectedTime, setSelectedTime] = useState<string>('0 13 * * *');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
 
-  // 加载状态
-  const loadStatus = useCallback(async () => {
-    setIsLoading(true);
+  // 数据状态
+  const [todayStatus, setTodayStatus] = useState<TodayStatus | null>(null);
+  const [reportContent, setReportContent] = useState<ReportContent | null>(null);
+  const [settings, setSettings] = useState<ReportSettings>({
+    morningReportTime: '08:00',
+    eveningReportTime: '21:00',
+    morningReportEnabled: true,
+    eveningReportEnabled: true,
+    notificationEnabled: true,
+  });
+
+  // 设置表单状态
+  const [morningTime, setMorningTime] = useState('08:00');
+  const [eveningTime, setEveningTime] = useState('21:00');
+  const [morningEnabled, setMorningEnabled] = useState(true);
+  const [eveningEnabled, setEveningEnabled] = useState(true);
+
+  // 加载今日状态
+  const loadTodayStatus = useCallback(async () => {
+    setIsLoadingStatus(true);
     try {
-      const result = await api.dailyReport.getStatus.query();
-      setStatus(result);
-      if (result.schedule) {
-        setSelectedTime(result.schedule);
-      }
-    } catch (err) {
-      console.error('加载日报状态失败:', err);
+      const status = await api.dailyReport.getTodayStatus.query();
+      setTodayStatus(status);
+    } catch (error) {
+      console.error('加载日报状态失败:', error);
     } finally {
-      setIsLoading(false);
+      setIsLoadingStatus(false);
+    }
+  }, []);
+
+  // 加载设置
+  const loadSettings = useCallback(async () => {
+    try {
+      const data = await api.dailyReport.getSettings.query();
+      setSettings(data);
+      setMorningTime(data.morningReportTime);
+      setEveningTime(data.eveningReportTime);
+      setMorningEnabled(data.morningReportEnabled);
+      setEveningEnabled(data.eveningReportEnabled);
+    } catch (error) {
+      console.error('加载设置失败:', error);
+    }
+  }, []);
+
+  // 加载日报内容
+  const loadReport = useCallback(async (type: ReportType) => {
+    setIsLoadingReport(true);
+    try {
+      const report = await api.dailyReport.get.query({ type, date: new Date() });
+      if (report) {
+        setReportContent(report.content as ReportContent);
+      } else {
+        setReportContent(null);
+      }
+    } catch (error) {
+      console.error('加载日报失败:', error);
+      setReportContent(null);
+    } finally {
+      setIsLoadingReport(false);
     }
   }, []);
 
   // 初始化
   useEffect(() => {
-    loadStatus();
-  }, [loadStatus]);
+    loadTodayStatus();
+    loadSettings();
+  }, [loadTodayStatus, loadSettings]);
+
+  // 切换标签时加载对应日报
+  useEffect(() => {
+    loadReport(activeTab);
+  }, [activeTab, loadReport]);
 
   // 手动生成日报
   const handleGenerate = useCallback(async () => {
     setIsGenerating(true);
-    setGeneratedContent(null);
     try {
-      const result = await api.dailyReport.generate.mutate();
-      setGeneratedContent(result.content);
+      const result = await api.dailyReport.generate.mutate({ type: activeTab });
+      setReportContent(result.content as ReportContent);
       toast.success('日报生成成功');
-    } catch (err) {
+      await loadTodayStatus();
+    } catch (error) {
       toast.error('生成失败，请稍后重试');
     } finally {
       setIsGenerating(false);
     }
-  }, [toast]);
+  }, [activeTab, toast, loadTodayStatus]);
 
   // 保存设置
   const handleSaveSettings = useCallback(async () => {
     setIsSaving(true);
     try {
-      await api.dailyReport.updateSchedule.mutate({ cronTime: selectedTime });
+      await api.dailyReport.updateSettings.mutate({
+        morningReportTime: morningTime,
+        eveningReportTime: eveningTime,
+        morningReportEnabled: morningEnabled,
+        eveningReportEnabled: eveningEnabled,
+      });
       toast.success('设置已保存');
       setIsSettingsOpen(false);
-      loadStatus();
-    } catch (err) {
+      await loadSettings();
+    } catch (error) {
       toast.error('保存失败');
     } finally {
       setIsSaving(false);
     }
-  }, [selectedTime, toast, loadStatus]);
+  }, [morningTime, eveningTime, morningEnabled, eveningEnabled, toast, loadSettings]);
 
-  // 启动/停止任务
-  const handleToggleTask = useCallback(async () => {
-    try {
-      if (status?.isScheduled) {
-        await api.dailyReport.stop.mutate();
-        toast.success('日报任务已停止');
-      } else {
-        await api.dailyReport.start.mutate({ cronTime: selectedTime, immediate: false });
-        toast.success('日报任务已启动');
-      }
-      loadStatus();
-    } catch (err) {
-      toast.error('操作失败');
-    }
-  }, [status, selectedTime, toast, loadStatus]);
-
-  // 获取当前时间显示
-  const getCurrentTimeLabel = () => {
-    const option = TIME_OPTIONS.find(o => o.key === status?.schedule);
-    return option?.label || status?.schedule || '未设置';
-  };
+  // 获取当前状态
+  const currentStatus = activeTab === 'morning' ? todayStatus?.morning : todayStatus?.evening;
 
   return (
     <div className="space-y-4">
+      {/* 标签切换 */}
+      <Tabs
+        selectedKey={activeTab}
+        onSelectionChange={(key) => setActiveTab(key as ReportType)}
+        variant="bordered"
+        classNames={{
+          tabList: 'gap-2',
+        }}
+      >
+        <Tab
+          key="morning"
+          title={
+            <div className="flex items-center gap-2">
+              <Icon icon="mdi:weather-sunny" className="w-4 h-4" />
+              <span>早报</span>
+              {todayStatus?.morning?.generated && (
+                <Chip size="sm" color="success" variant="dot" />
+              )}
+            </div>
+          }
+        />
+        <Tab
+          key="evening"
+          title={
+            <div className="flex items-center gap-2">
+              <Icon icon="mdi:weather-night" className="w-4 h-4" />
+              <span>晚报</span>
+              {todayStatus?.evening?.generated && (
+                <Chip size="sm" color="success" variant="dot" />
+              )}
+            </div>
+          }
+        />
+      </Tabs>
+
       {/* 状态卡片 */}
       <Card>
         <CardHeader className="flex items-center justify-between pb-2">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
-              <Icon icon="solar:document-text-bold-duotone" className="w-6 h-6 text-white" />
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              activeTab === 'morning' 
+                ? 'bg-gradient-to-br from-amber-500 to-orange-500' 
+                : 'bg-gradient-to-br from-indigo-500 to-purple-500'
+            }`}>
+              <Icon 
+                icon={activeTab === 'morning' ? 'mdi:weather-sunny' : 'mdi:weather-night'} 
+                className="w-6 h-6 text-white" 
+              />
             </div>
             <div>
-              <h3 className="text-lg font-semibold">每日日报</h3>
-              <p className="text-xs text-foreground/50">AI 自动生成的每日活动总结</p>
+              <h3 className="text-lg font-semibold">
+                {activeTab === 'morning' ? '今日早报' : '今日晚报'}
+              </h3>
+              <p className="text-xs text-foreground/50">
+                {format(new Date(), 'yyyy年MM月dd日 EEEE', { locale: zhCN })}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {isLoading ? (
+            {isLoadingStatus ? (
               <Spinner size="sm" />
             ) : (
               <Chip
                 size="sm"
-                color={status?.isScheduled ? 'success' : 'default'}
+                color={currentStatus?.generated ? 'success' : 'default'}
                 variant="flat"
-                startContent={
-                  <Icon 
-                    icon={status?.isScheduled ? 'mdi:check-circle' : 'mdi:pause-circle'} 
-                    className="w-3 h-3" 
-                  />
-                }
               >
-                {status?.isScheduled ? '已启用' : '已停用'}
+                {currentStatus?.generated ? '已生成' : '未生成'}
               </Chip>
             )}
           </div>
@@ -176,15 +284,6 @@ export function DailyReport() {
         <Divider />
 
         <CardBody className="space-y-4">
-          {/* 当前设置 */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-default-100">
-            <div className="flex items-center gap-2">
-              <Icon icon="mdi:clock-outline" className="w-5 h-5 text-foreground/60" />
-              <span className="text-sm">生成时间</span>
-            </div>
-            <span className="text-sm font-medium">{getCurrentTimeLabel()}</span>
-          </div>
-
           {/* 操作按钮 */}
           <div className="flex flex-wrap gap-2">
             <Button
@@ -193,7 +292,7 @@ export function DailyReport() {
               isLoading={isGenerating}
               startContent={!isGenerating && <Icon icon="mdi:file-document-plus-outline" className="w-4 h-4" />}
             >
-              立即生成
+              {currentStatus?.generated ? '重新生成' : '立即生成'}
             </Button>
             <Button
               variant="flat"
@@ -202,40 +301,134 @@ export function DailyReport() {
             >
               设置
             </Button>
-            <Button
-              variant="flat"
-              color={status?.isScheduled ? 'danger' : 'success'}
-              onPress={handleToggleTask}
-              startContent={
-                <Icon 
-                  icon={status?.isScheduled ? 'mdi:stop' : 'mdi:play'} 
-                  className="w-4 h-4" 
-                />
-              }
-            >
-              {status?.isScheduled ? '停止' : '启动'}
-            </Button>
           </div>
+
+          {/* 日报内容 */}
+          {isLoadingReport ? (
+            <div className="flex justify-center py-8">
+              <Spinner />
+            </div>
+          ) : reportContent ? (
+            <div className="space-y-4">
+              {/* 问候语 */}
+              {reportContent.greeting && (
+                <p className="text-lg font-medium text-foreground/80">
+                  {reportContent.greeting}
+                </p>
+              )}
+
+              {/* AI 摘要 */}
+              <div className="p-4 rounded-lg bg-default-100">
+                <p className="text-sm">{reportContent.summary}</p>
+              </div>
+
+              {/* 任务统计 */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCard
+                  icon="mdi:clipboard-list"
+                  label="总任务"
+                  value={reportContent.tasks.total}
+                  color="blue"
+                />
+                <StatCard
+                  icon="mdi:check-circle"
+                  label="已完成"
+                  value={reportContent.tasks.completed}
+                  color="green"
+                />
+                <StatCard
+                  icon="mdi:clock-outline"
+                  label="待处理"
+                  value={reportContent.tasks.pending}
+                  color="amber"
+                />
+                <StatCard
+                  icon="mdi:alert-circle"
+                  label="逾期"
+                  value={reportContent.tasks.overdue}
+                  color="red"
+                />
+              </div>
+
+              {/* 笔记统计 */}
+              {reportContent.notes.count > 0 && (
+                <div className="p-3 rounded-lg bg-default-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon icon="mdi:note-text" className="w-4 h-4 text-foreground/60" />
+                    <span className="text-sm font-medium">
+                      今日笔记: {reportContent.notes.count} 条
+                    </span>
+                  </div>
+                  {reportContent.notes.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {reportContent.notes.tags.map((tag) => (
+                        <Chip key={tag} size="sm" variant="flat">
+                          #{tag}
+                        </Chip>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 建议列表 */}
+              {reportContent.suggestions.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <Icon icon="mdi:lightbulb-outline" className="w-4 h-4" />
+                    建议
+                  </h4>
+                  {reportContent.suggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className={`p-3 rounded-lg border-l-4 ${
+                        suggestion.priority === 'high'
+                          ? 'border-l-danger bg-danger/5'
+                          : suggestion.priority === 'medium'
+                          ? 'border-l-warning bg-warning/5'
+                          : 'border-l-default bg-default-50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <Chip size="sm" variant="flat" className="flex-shrink-0">
+                          {suggestion.type}
+                        </Chip>
+                        <p className="text-sm">{suggestion.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 活动统计 (晚报) */}
+              {reportContent.activities && (
+                <div className="p-3 rounded-lg bg-default-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon icon="mdi:chart-timeline-variant" className="w-4 h-4 text-foreground/60" />
+                    <span className="text-sm font-medium">
+                      活动时长: {reportContent.activities.totalDuration} 分钟
+                    </span>
+                  </div>
+                  {reportContent.activities.topDomains.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {reportContent.activities.topDomains.map((domain) => (
+                        <Chip key={domain.name} size="sm" variant="flat">
+                          {domain.name}: {domain.duration}分钟
+                        </Chip>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-foreground/50">
+              <Icon icon="mdi:file-document-outline" className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>暂无日报，点击"立即生成"创建</p>
+            </div>
+          )}
         </CardBody>
       </Card>
-
-      {/* 生成的日报内容 */}
-      {generatedContent && (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <Icon icon="mdi:file-document-check-outline" className="w-5 h-5 text-success" />
-              <span className="font-medium">生成结果</span>
-            </div>
-          </CardHeader>
-          <Divider />
-          <CardBody>
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <MarkdownRender content={generatedContent} />
-            </div>
-          </CardBody>
-        </Card>
-      )}
 
       {/* 设置弹窗 */}
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}>
@@ -244,23 +437,46 @@ export function DailyReport() {
             <Icon icon="mdi:cog-outline" className="w-5 h-5" />
             日报设置
           </ModalHeader>
-          <ModalBody>
-            <Select
-              label="生成时间"
-              placeholder="选择每日生成时间"
-              selectedKeys={[selectedTime]}
-              onSelectionChange={(keys) => {
-                const selected = Array.from(keys)[0] as string;
-                if (selected) setSelectedTime(selected);
-              }}
-              description="日报将在每天指定时间自动生成"
-            >
-              {TIME_OPTIONS.map((option) => (
-                <SelectItem key={option.key}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </Select>
+          <ModalBody className="space-y-4">
+            {/* 早报设置 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">早报</span>
+                <Switch
+                  size="sm"
+                  isSelected={morningEnabled}
+                  onValueChange={setMorningEnabled}
+                />
+              </div>
+              <Input
+                type="time"
+                label="生成时间"
+                value={morningTime}
+                onValueChange={setMorningTime}
+                isDisabled={!morningEnabled}
+              />
+            </div>
+
+            <Divider />
+
+            {/* 晚报设置 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">晚报</span>
+                <Switch
+                  size="sm"
+                  isSelected={eveningEnabled}
+                  onValueChange={setEveningEnabled}
+                />
+              </div>
+              <Input
+                type="time"
+                label="生成时间"
+                value={eveningTime}
+                onValueChange={setEveningTime}
+                isDisabled={!eveningEnabled}
+              />
+            </div>
           </ModalBody>
           <ModalFooter>
             <Button variant="flat" onPress={() => setIsSettingsOpen(false)}>
@@ -276,6 +492,36 @@ export function DailyReport() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+    </div>
+  );
+}
+
+// 统计卡片子组件
+function StatCard({ 
+  icon, 
+  label, 
+  value, 
+  color 
+}: { 
+  icon: string; 
+  label: string; 
+  value: number; 
+  color: 'blue' | 'green' | 'amber' | 'red';
+}) {
+  const colorClasses = {
+    blue: 'bg-blue-500/10 text-blue-500',
+    green: 'bg-green-500/10 text-green-500',
+    amber: 'bg-amber-500/10 text-amber-500',
+    red: 'bg-red-500/10 text-red-500',
+  };
+
+  return (
+    <div className="p-3 rounded-lg bg-default-50 text-center">
+      <div className={`w-8 h-8 rounded-full mx-auto mb-1 flex items-center justify-center ${colorClasses[color]}`}>
+        <Icon icon={icon} className="w-4 h-4" />
+      </div>
+      <p className="text-xl font-bold">{value}</p>
+      <p className="text-xs text-foreground/50">{label}</p>
     </div>
   );
 }

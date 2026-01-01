@@ -27,7 +27,7 @@ export const gatewayRouter = router({
 
   /**
    * 获取单个服务状态
-   * @param name - 服务名称 (khoj, janitor, paperless, seekdb)
+   * @param name - 服务名称 (khoj, janitor, paperless)
    */
   getServiceStatus: publicProcedure
     .input(z.object({ name: z.string() }))

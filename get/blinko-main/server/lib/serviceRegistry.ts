@@ -3,10 +3,11 @@
  * 管理所有外部服务的配置和状态
  * 
  * 支持的服务：
- * - Khoj: AI 知识助手
  * - Janitor: AI 文件整理
- * - Paperless: 文档管理
- * - SeekDB: 向量搜索
+ * 
+ * 已整合的服务（不再需要外部依赖）：
+ * - Khoj: AI 知识助手 → 已整合到 AiService + Mastra Agent
+ * - Paperless: 文档管理 → 已整合到 PostgreSQL + postgresSearchService
  */
 
 // ============ 类型定义 ============
@@ -53,41 +54,11 @@ export class ServiceRegistry {
    * 从环境变量初始化服务配置
    */
   private initializeServices(): void {
-    // Khoj - AI 知识助手
-    this.register({
-      name: 'khoj',
-      displayName: 'Khoj AI',
-      baseUrl: process.env.KHOJ_API_URL || 'http://localhost:42110',
-      healthEndpoint: '/api/health',
-      timeout: 10000,
-      enabled: true,
-    });
-
     // Janitor - AI 文件整理
     this.register({
       name: 'janitor',
       displayName: 'Janitor',
       baseUrl: process.env.JANITOR_API_URL || 'http://localhost:8766',
-      healthEndpoint: '/health',
-      timeout: 10000,
-      enabled: true,
-    });
-
-    // Paperless - 文档管理
-    this.register({
-      name: 'paperless',
-      displayName: 'Paperless',
-      baseUrl: process.env.PAPERLESS_API_URL || 'http://localhost:8000',
-      healthEndpoint: '/api/tags/', // Paperless 没有专门的 health 端点
-      timeout: 10000,
-      enabled: !!process.env.PAPERLESS_API_TOKEN,
-    });
-
-    // SeekDB - 向量搜索
-    this.register({
-      name: 'seekdb',
-      displayName: 'SeekDB',
-      baseUrl: process.env.SEEKDB_API_URL || 'http://localhost:8765',
       healthEndpoint: '/health',
       timeout: 10000,
       enabled: true,

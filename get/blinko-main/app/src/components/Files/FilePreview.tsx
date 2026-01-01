@@ -54,6 +54,8 @@ interface FilePreviewProps {
   tags: PaperlessTag[];
   documentTypes: PaperlessDocumentType[];
   onRefresh: () => void;
+  /** 是否为移动端 */
+  isMobile?: boolean;
 }
 
 export const FilePreview = memo(({
@@ -63,6 +65,7 @@ export const FilePreview = memo(({
   tags,
   documentTypes,
   onRefresh,
+  isMobile = false,
 }: FilePreviewProps) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('preview');
@@ -177,10 +180,11 @@ export const FilePreview = memo(({
     <Modal 
       isOpen={isOpen} 
       onClose={onClose}
-      size="5xl"
+      size={isMobile ? 'full' : '5xl'}
       scrollBehavior="inside"
       classNames={{
-        base: 'max-h-[90vh]',
+        base: isMobile ? 'h-full m-0 rounded-none' : 'max-h-[90vh]',
+        wrapper: isMobile ? 'p-0' : undefined,
       }}
     >
       <ModalContent>
@@ -245,9 +249,9 @@ export const FilePreview = memo(({
         </ModalHeader>
         
         <ModalBody className="p-0">
-          <div className="flex h-[70vh]">
+          <div className={`flex ${isMobile ? 'flex-col h-full' : 'h-[70vh]'}`}>
             {/* 预览区域 */}
-            <div className="flex-1 bg-default-50 overflow-auto">
+            <div className={`${isMobile ? 'flex-1' : 'flex-1'} bg-default-50 overflow-auto`}>
               <Tabs 
                 selectedKey={activeTab} 
                 onSelectionChange={(key) => setActiveTab(key as string)}
@@ -315,7 +319,7 @@ export const FilePreview = memo(({
             </div>
 
             {/* 信息侧边栏 */}
-            <div className="w-72 border-l border-divider p-4 space-y-6 overflow-auto">
+            <div className={`${isMobile ? 'border-t' : 'w-72 border-l'} border-divider p-4 space-y-6 overflow-auto ${isMobile ? 'max-h-64' : ''}`}>
               {/* 文档信息 */}
               <div>
                 <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">

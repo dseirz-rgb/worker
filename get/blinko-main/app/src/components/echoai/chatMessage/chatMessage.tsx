@@ -486,7 +486,7 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>((props, ref) =>
     setIsPlaying(false);
   };
 
-  const isKhoj = props.chatMessage.by === 'khoj';
+  const isAI = props.chatMessage.by === 'khoj' || props.chatMessage.by === 'ai' || props.chatMessage.by === 'assistant';
   const borderColor = props.borderLeftColor || 'border-l-primary';
 
   return (
@@ -507,12 +507,12 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>((props, ref) =>
 
       <div
         ref={ref}
-        className={`group ${isKhoj ? 'bg-default-50 shadow-sm' : ''} rounded-lg p-4`}
+        className={`group ${isAI ? 'bg-default-50 shadow-sm' : ''} rounded-lg p-4`}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
         data-created={formatDate(props.chatMessage.created)}
       >
-        <div className={`${isKhoj ? `border-l-4 ${borderColor} pl-4` : ''}`}>
+        <div className={`${isAI ? `border-l-4 ${borderColor} pl-4` : ''}`}>
           {/* 附件文件 */}
           {props.chatMessage.queryFiles && props.chatMessage.queryFiles.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-3">
@@ -554,7 +554,7 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>((props, ref) =>
           />
 
           {/* 引用来源面板 - 仅在 AI 回复且有引用时显示 */}
-          {isKhoj && (() => {
+          {isAI && (() => {
             const references = constructAllReferences(
               props.chatMessage.context,
               props.chatMessage.onlineContext,
@@ -590,7 +590,7 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>((props, ref) =>
 
           <div className="flex items-center gap-1">
             {/* 语音播放 */}
-            {isKhoj && (
+            {isAI && (
               <Tooltip content={isPlaying ? '停止播放' : '朗读'}>
                 <Button
                   isIconOnly
@@ -621,7 +621,7 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>((props, ref) =>
             )}
 
             {/* 重试 */}
-            {isKhoj && props.onRetryMessage && props.isLastMessage && (
+            {isAI && props.onRetryMessage && props.isLastMessage && (
               <Tooltip content="重试">
                 <Button
                   isIconOnly
@@ -659,7 +659,7 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>((props, ref) =>
             </Tooltip>
 
             {/* 反馈 */}
-            {isKhoj && (
+            {isAI && (
               <FeedbackButtons
                 uquery={props.chatMessage.intent?.query || props.chatMessage.rawQuery || props.chatMessage.message}
                 kquery={props.chatMessage.message}

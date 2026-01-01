@@ -48,14 +48,12 @@ export const DataFlowGuide = observer(({ onNavigate }: DataFlowGuideProps) => {
   const navigate = useNavigate();
   const [services, setServices] = useState<ServiceStatus[]>([
     { name: 'janitor', status: 'checking', label: 'Janitor AI' },
-    { name: 'seekdb', status: 'checking', label: 'SeekDB' },
   ]);
 
   // 检查服务状态
   const checkServices = async () => {
     const newServices: ServiceStatus[] = [
       { name: 'janitor', status: 'checking', label: 'Janitor AI' },
-      { name: 'seekdb', status: 'checking', label: 'SeekDB' },
     ];
     
     // 检查 Janitor
@@ -69,19 +67,6 @@ export const DataFlowGuide = observer(({ onNavigate }: DataFlowGuideProps) => {
       };
     } catch {
       newServices[0] = { ...newServices[0], status: 'offline' };
-    }
-
-    // 检查 SeekDB
-    try {
-      const seekdbResult = await api.paperless.testConnection.mutate({
-        baseUrl: '',
-      });
-      newServices[1] = {
-        ...newServices[1],
-        status: seekdbResult.success ? 'online' : 'offline',
-      };
-    } catch {
-      newServices[1] = { ...newServices[1], status: 'offline' };
     }
 
     setServices(newServices);
@@ -133,23 +118,22 @@ export const DataFlowGuide = observer(({ onNavigate }: DataFlowGuideProps) => {
       configLabel: '查看分类规则',
     },
     {
-      id: 'seekdb',
+      id: 'postgres',
       icon: 'solar:database-bold-duotone',
       iconColor: 'text-purple-500',
       bgColor: 'bg-purple-500/10',
-      title: '🗄️ SeekDB 向量数据库',
-      description: '自动索引文件内容，生成向量嵌入',
-      serviceName: 'seekdb',
+      title: '🗄️ PostgreSQL 数据库',
+      description: '使用 PostgreSQL FTS 进行全文搜索索引',
       configLink: '#paperless-setting',
-      configLabel: '配置 SeekDB',
+      configLabel: '配置数据库',
     },
     {
       id: 'search',
       icon: 'solar:magnifer-bold-duotone',
       iconColor: 'text-cyan-500',
       bgColor: 'bg-cyan-500/10',
-      title: '🔍 混合搜索',
-      description: '支持文本搜索 + 语义搜索的智能检索',
+      title: '🔍 全文搜索',
+      description: '基于 PostgreSQL pg_trgm 的快速文本检索',
       configLink: '/files',
       configLabel: '前往文件管理',
     },
@@ -316,11 +300,11 @@ export const DataFlowGuide = observer(({ onNavigate }: DataFlowGuideProps) => {
             </p>
             <p>
               <strong className="text-foreground">3. 内容索引：</strong>
-              SeekDB 提取文件内容，生成向量嵌入存入数据库
+              PostgreSQL 提取文件内容，建立全文搜索索引
             </p>
             <p>
-              <strong className="text-foreground">4. 智能搜索：</strong>
-              支持关键词搜索和语义搜索，快速找到相关文件
+              <strong className="text-foreground">4. 快速搜索：</strong>
+              基于 pg_trgm 的全文搜索，快速找到相关文件
             </p>
           </div>
         </div>

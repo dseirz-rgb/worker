@@ -49,10 +49,8 @@ export function useAllServiceStatuses() {
       const services = result?.services || [];
       if (Array.isArray(services)) {
         const displayNames: Record<string, string> = {
-          seekdb: 'SeekDB',
           janitor: 'Janitor',
           khoj: 'Khoj AI',
-          paperless: 'Paperless',
         };
         const statusList: ServiceStatusWithDisplay[] = services.map((s: ServiceStatus) => ({
           ...s,

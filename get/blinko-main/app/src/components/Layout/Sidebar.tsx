@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { BlinkoStore } from '@/store/blinkoStore';
 import { useLocation, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { eventBus } from '@/lib/event';
+import { NotificationCenter } from './NotificationCenter';
 
 interface SidebarProps {
   onItemClick?: () => void;
@@ -66,6 +67,11 @@ export const Sidebar = observer(({ onItemClick }: SidebarProps) => {
         <div className={`flex w-full ${base.isSidebarCollapsed ? 'flex-col-reverse gap-2 justify-center items-center mr-2 mb-2' : 'items-center '}`}>
           <div className={`${base.isSidebarCollapsed ? 'w-full flex justify-center' : ''}`}>
             <UserAvatarDropdown onItemClick={onItemClick} collapsed={base.isSidebarCollapsed} showOverlay={isHovering} />
+          </div>
+
+          {/* 通知中心 - v3.2 新增 */}
+          <div className={`${base.isSidebarCollapsed ? 'w-full flex justify-center' : 'ml-1'}`}>
+            <NotificationCenter />
           </div>
 
           {isPc ? (

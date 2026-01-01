@@ -52,13 +52,6 @@ vi.mock('./agentManager', () => ({
   },
 }));
 
-// Mock KhojClient
-vi.mock('@server/lib/khojClient', () => ({
-  KhojClient: vi.fn().mockImplementation(() => ({
-    chat: vi.fn().mockResolvedValue({ response: 'Khoj response', context: [] }),
-  })),
-}));
-
 import { AIServiceRouter } from './serviceRouter';
 
 describe('AIServiceRouter 属性测试', () => {
@@ -74,17 +67,16 @@ describe('AIServiceRouter 属性测试', () => {
   /**
    * Property 6: 功能开关路由正确性
    * 
-   * *For any* feature flag configuration, requests SHALL be routed to the
-   * correct service (Mastra or Khoj) based on the flag value.
+   * *For any* feature flag configuration, requests SHALL be routed correctly
+   * based on the flag value.
    */
   describe('Property 6: 功能开关路由正确性', () => {
-    it('当 flag 为 true 时应使用 Mastra', async () => {
+    it('当 flag 为 true 时功能应启用', async () => {
       await fc.assert(
         fc.asyncProperty(
           fc.constantFrom('research', 'agent', 'automation', 'chat') as fc.Arbitrary<'research' | 'agent' | 'automation' | 'chat'>,
           fc.integer({ min: 1, max: 1000 }),
           async (feature, accountId) => {
-            // 设置 flag 为 true
             const flagKey = {
               research: 'use_mastra_research',
               agent: 'use_mastra_agents',
@@ -94,8 +86,8 @@ describe('AIServiceRouter 属性测试', () => {
 
             mockFlags.set(`${flagKey}_${accountId}`, { key: flagKey, value: true, accountId });
 
-            const shouldUseMastra = await router.shouldUseMastra(feature, accountId);
-            expect(shouldUseMastra).toBe(true);
+            const isEnabled = await router.isFeatureEnabled(feature, accountId);
+            expect(isEnabled).toBe(true);
 
             return true;
           }
@@ -104,7 +96,7 @@ describe('AIServiceRouter 属性测试', () => {
       );
     });
 
-    it('当 flag 为 false 时应使用 Khoj', async () => {
+    it('当 flag 为 false 时功能应禁用', async () => {
       await fc.assert(
         fc.asyncProperty(
           fc.constantFrom('research', 'agent', 'automation', 'chat') as fc.Arbitrary<'research' | 'agent' | 'automation' | 'chat'>,
@@ -119,8 +111,8 @@ describe('AIServiceRouter 属性测试', () => {
 
             mockFlags.set(`${flagKey}_${accountId}`, { key: flagKey, value: false, accountId });
 
-            const shouldUseMastra = await router.shouldUseMastra(feature, accountId);
-            expect(shouldUseMastra).toBe(false);
+            const isEnabled = await router.isFeatureEnabled(feature, accountId);
+            expect(isEnabled).toBe(false);
 
             return true;
           }
@@ -148,10 +140,10 @@ describe('AIServiceRouter 属性测试', () => {
             // 设置用户 flag
             mockFlags.set(`${flagKey}_${accountId}`, { key: flagKey, value: userValue, accountId });
 
-            const shouldUseMastra = await router.shouldUseMastra(feature, accountId);
+            const isEnabled = await router.isFeatureEnabled(feature, accountId);
             
             // 用户设置应该生效
-            expect(shouldUseMastra).toBe(userValue);
+            expect(isEnabled).toBe(userValue);
 
             return true;
           }
@@ -160,7 +152,7 @@ describe('AIServiceRouter 属性测试', () => {
       );
     });
 
-    it('无 flag 时应默认使用 Mastra', async () => {
+    it('无 flag 时应默认启用', async () => {
       await fc.assert(
         fc.asyncProperty(
           fc.constantFrom('research', 'agent', 'automation', 'chat') as fc.Arbitrary<'research' | 'agent' | 'automation' | 'chat'>,
@@ -169,10 +161,10 @@ describe('AIServiceRouter 属性测试', () => {
             // 不设置任何 flag
             mockFlags.clear();
 
-            const shouldUseMastra = await router.shouldUseMastra(feature, accountId);
+            const isEnabled = await router.isFeatureEnabled(feature, accountId);
             
-            // 默认应该使用 Mastra
-            expect(shouldUseMastra).toBe(true);
+            // 默认应该启用
+            expect(isEnabled).toBe(true);
 
             return true;
           }
@@ -192,13 +184,12 @@ describe('AIServiceRouter 属性测试', () => {
 
             // 模拟多次请求
             for (let i = 0; i < requestCount; i++) {
-              // 直接调用内部方法模拟记录
-              (router as any).recordMetrics('mastra', true, 100);
+              (router as any).recordMetrics(true, 100);
             }
 
             const metrics = router.getMetrics();
-            expect(metrics.mastra.requests).toBe(requestCount);
-            expect(metrics.mastra.successes).toBe(requestCount);
+            expect(metrics.requests).toBe(requestCount);
+            expect(metrics.successes).toBe(requestCount);
 
             return true;
           }
@@ -216,17 +207,17 @@ describe('AIServiceRouter 属性测试', () => {
             router.resetMetrics();
 
             for (let i = 0; i < successCount; i++) {
-              (router as any).recordMetrics('mastra', true, 100);
+              (router as any).recordMetrics(true, 100);
             }
 
             for (let i = 0; i < failureCount; i++) {
-              (router as any).recordMetrics('mastra', false, 100);
+              (router as any).recordMetrics(false, 100);
             }
 
             const metrics = router.getMetrics();
-            expect(metrics.mastra.requests).toBe(successCount + failureCount);
-            expect(metrics.mastra.successes).toBe(successCount);
-            expect(metrics.mastra.failures).toBe(failureCount);
+            expect(metrics.requests).toBe(successCount + failureCount);
+            expect(metrics.successes).toBe(successCount);
+            expect(metrics.failures).toBe(failureCount);
 
             return true;
           }
@@ -246,17 +237,17 @@ describe('AIServiceRouter 属性测试', () => {
             router.resetMetrics();
 
             for (let i = 0; i < successes; i++) {
-              (router as any).recordMetrics('mastra', true, 100);
+              (router as any).recordMetrics(true, 100);
             }
 
             for (let i = 0; i < failures; i++) {
-              (router as any).recordMetrics('mastra', false, 100);
+              (router as any).recordMetrics(false, 100);
             }
 
             const health = router.getHealthStatus();
             const expectedRate = successes / (successes + failures);
 
-            expect(health.mastra.successRate).toBeCloseTo(expectedRate, 5);
+            expect(health.successRate).toBeCloseTo(expectedRate, 5);
 
             return true;
           }
@@ -277,15 +268,15 @@ describe('AIServiceRouter 属性测试', () => {
             const failures = 100 - successRate;
 
             for (let i = 0; i < successes; i++) {
-              (router as any).recordMetrics('mastra', true, 100);
+              (router as any).recordMetrics(true, 100);
             }
 
             for (let i = 0; i < failures; i++) {
-              (router as any).recordMetrics('mastra', false, 100);
+              (router as any).recordMetrics(false, 100);
             }
 
             const health = router.getHealthStatus();
-            expect(health.mastra.healthy).toBe(true);
+            expect(health.healthy).toBe(true);
 
             return true;
           }

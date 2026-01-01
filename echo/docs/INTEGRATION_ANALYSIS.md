@@ -35,11 +35,10 @@
 **集成策略**: 直接基于 Blinko 代码扩展，而非参考后重写
 
 **Echo 扩展功能**:
-- `server/routerTrpc/paperless.ts` - 文件管理路由
+- `server/routerTrpc/paperless.ts` - 文件管理路由 (历史命名)
 - `server/routerTrpc/janitor.ts` - Janitor 路由
 - `server/routerTrpc/ingest.ts` - 多模态摄入路由
 - `server/lib/seekdbClient.ts` - SeekDB 客户端
-- `server/lib/paperlessClient.ts` - Paperless 客户端
 - `server/lib/janitorClient.ts` - Janitor 客户端
 - `server/lib/postgresSearchService.ts` - PostgreSQL 搜索服务
 
@@ -71,26 +70,22 @@
 
 ---
 
-### 3. Paperless-ngx 集成 ⭐ 文件管理
+### 3. PostgreSQL 文件服务 ⭐ 文件管理
 
-| 方面 | 参考项目能力 | Echo 当前实现 | 状态 |
+| 方面 | 设计目标 | Echo 当前实现 | 状态 |
 |------|-------------|--------------|------|
 | **文件上传** | 多格式支持 | ✅ PDF/图片/Office | 🟢 完成 |
 | **OCR 流水线** | Tesseract + 预处理 | ✅ 中文 OCR (chi_sim) | 🟢 完成 |
-| **全文索引** | Whoosh/Elasticsearch | ✅ PostgreSQL FTS | 🟢 完成 |
+| **全文索引** | PostgreSQL FTS | ✅ PostgreSQL FTS | 🟢 完成 |
 | **文档预览** | PDF.js、图片预览 | ✅ FilePreview 组件 | 🟢 完成 |
 | **标签管理** | 层级标签 | ✅ 完整实现 | 🟢 完成 |
 | **文档类型** | 自定义类型 | ✅ 完整实现 | 🟢 完成 |
 
 **核心实现文件**:
-- `get/blinko-main/server/lib/paperlessClient.ts` - API 客户端
-- `get/blinko-main/server/routerTrpc/paperless.ts` - tRPC 路由
+- `get/blinko-main/server/lib/postgresSearchService.ts` - 搜索服务
+- `get/blinko-main/server/routerTrpc/paperless.ts` - tRPC 路由 (历史命名)
 - `get/blinko-main/app/src/pages/files.tsx` - 文件页面
 - `get/blinko-main/app/src/components/Files/` - 文件组件
-
-**Docker 配置**:
-- `echo/docker-compose.paperless.yml` - Paperless 服务
-- `echo/scripts/start-paperless.sh` - 启动脚本
 
 ---
 
@@ -211,7 +206,7 @@
 | **Blinko** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 保持 | 核心平台 |
 | **PostgreSQL** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ↑↑ | FTS 扩展完成 |
 | **SeekDB** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ↑ | 连接池+缓存 |
-| **Paperless-ngx** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ↑↑ | 完整集成 |
+| **PostgreSQL 文件服务** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ↑↑ | 完整实现 |
 | **faster-whisper** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ↑ | 时间戳支持 |
 | **python-pptx** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ↑ | 页码支持 |
 | **Ollama** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ↑↑ | Embedding+LLM |
@@ -237,7 +232,7 @@ v3.0 解决：双数据库架构 + SearchRouter
 #### 2. 文件管理功能 - 已完成
 ```
 v2.0 问题：文件管理功能不完整
-v3.0 解决：完整集成 Paperless-ngx
+v3.0 解决：PostgreSQL 文件服务
 - 文件上传/预览/搜索
 - OCR 文字提取
 - 标签和类型管理

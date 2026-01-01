@@ -1,6 +1,6 @@
 /**
  * EchoAI 首页
- * 从 Khoj 源码移植，提供 Agent 选择和建议卡片
+ * 提供 Agent 选择和建议卡片，基于 Mastra AI 服务
  */
 
 import { observer } from 'mobx-react-lite';
@@ -8,8 +8,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Card, 
-  CardBody, 
   Button, 
   Spinner,
   ScrollShadow,
@@ -27,8 +25,20 @@ import {
   getStepTwoSuggestions,
 } from '@/components/echoai/suggestions';
 import type { StepOneSuggestion, StepTwoSuggestion } from '@/components/echoai/suggestions';
-import type { KhojAgent } from '@/components/echoai/agentCard';
 import { getIconFromIconName } from '@/components/echoai/common/iconUtils';
+
+// Agent 类型定义（从 Mastra agentManager 映射）
+interface EchoAgent {
+  id: number;
+  slug: string;
+  name: string;
+  persona?: string | null;
+  systemPrompt: string;
+  tools: string[];
+  privacy: 'public' | 'private';
+  color?: string | null;
+  icon?: string | null;
+}
 
 
 // ============================================
@@ -36,34 +46,79 @@ import { getIconFromIconName } from '@/components/echoai/common/iconUtils';
 // ============================================
 
 interface AgentCardProps {
-  agent: KhojAgent;
+  agent: EchoAgent;
   isSelected: boolean;
   onSelect: () => void;
 }
 
 function AgentSelectCard({ agent, isSelected, onSelect }: AgentCardProps) {
-  const colorClass = agent.color ? `border-${agent.color}-500` : 'border-default-200';
+  // 颜色映射 - 使用柔和的渐变色
+  const colorStyles: Record<string, { bg: string; border: string; icon: string }> = {
+    orange: { 
+      bg: 'bg-gradient-to-br from-orange-100 to-amber-100 dark:from-orange-900/40 dark:to-amber-900/40', 
+      border: 'border-orange-300 dark:border-orange-700/60',
+      icon: 'text-orange-600 dark:text-orange-400'
+    },
+    blue: { 
+      bg: 'bg-gradient-to-br from-blue-100 to-sky-100 dark:from-blue-900/40 dark:to-sky-900/40', 
+      border: 'border-blue-300 dark:border-blue-700/60',
+      icon: 'text-blue-600 dark:text-blue-400'
+    },
+    green: { 
+      bg: 'bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/40 dark:to-emerald-900/40', 
+      border: 'border-green-300 dark:border-green-700/60',
+      icon: 'text-green-600 dark:text-green-400'
+    },
+    purple: { 
+      bg: 'bg-gradient-to-br from-purple-100 to-violet-100 dark:from-purple-900/40 dark:to-violet-900/40', 
+      border: 'border-purple-300 dark:border-purple-700/60',
+      icon: 'text-purple-600 dark:text-purple-400'
+    },
+    red: { 
+      bg: 'bg-gradient-to-br from-red-100 to-rose-100 dark:from-red-900/40 dark:to-rose-900/40', 
+      border: 'border-red-300 dark:border-red-700/60',
+      icon: 'text-red-600 dark:text-red-400'
+    },
+    teal: { 
+      bg: 'bg-gradient-to-br from-teal-100 to-cyan-100 dark:from-teal-900/40 dark:to-cyan-900/40', 
+      border: 'border-teal-300 dark:border-teal-700/60',
+      icon: 'text-teal-600 dark:text-teal-400'
+    },
+  };
+  
+  const color = agent.color || 'orange';
+  const style = colorStyles[color] || colorStyles.orange;
   
   return (
-    <Card
-      isPressable
+    <button
+      onClick={onSelect}
       className={`
-        min-w-[120px] cursor-pointer transition-all
-        ${isSelected ? colorClass + ' border-2' : 'border border-default-200 hover:border-default-400'}
+        group relative px-4 py-2.5 rounded-full
+        flex items-center gap-2
+        transition-all duration-200 ease-out
+        border
+        ${isSelected 
+          ? `${style.bg} ${style.border} shadow-sm` 
+          : 'bg-white/60 dark:bg-default-100/60 border-default-200 dark:border-default-300/20 hover:bg-default-100 dark:hover:bg-default-200/30'
+        }
       `}
-      shadow="sm"
-      onPress={onSelect}
     >
-      <CardBody className="p-3 flex flex-row items-center gap-2">
-        <div className={`
-          w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
-          ${agent.color ? `bg-${agent.color}-500/20` : 'bg-default-100'}
-        `}>
-          {getIconFromIconName(agent.icon || 'Lightbulb', agent.color || 'orange', 'w-5', 'h-5')}
-        </div>
-        <span className="text-sm font-medium whitespace-nowrap">{agent.name}</span>
-      </CardBody>
-    </Card>
+      {/* 图标 */}
+      <span className={`
+        flex-shrink-0 transition-colors duration-200
+        ${isSelected ? style.icon : 'text-default-400 group-hover:text-default-600'}
+      `}>
+        {getIconFromIconName(agent.icon || 'Lightbulb', isSelected ? color : 'gray', 'w-4', 'h-4')}
+      </span>
+      
+      {/* 文字 */}
+      <span className={`
+        text-sm font-medium whitespace-nowrap transition-colors duration-200
+        ${isSelected ? 'text-foreground' : 'text-default-500 group-hover:text-foreground'}
+      `}>
+        {agent.name}
+      </span>
+    </button>
   );
 }
 
@@ -76,9 +131,7 @@ const EchoAIHomePage = observer(() => {
   const navigate = useNavigate();
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // 状态
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
+  // 状态 - Mastra 服务始终可用，无需检查
   const [greeting, setGreeting] = useState('');
   const [message, setMessage] = useState('');
   const [prefillMessage, setPrefillMessage] = useState('');
@@ -88,8 +141,9 @@ const EchoAIHomePage = observer(() => {
   const [processingMessage, setProcessingMessage] = useState(false);
 
   // Agent 状态
-  const [agents, setAgents] = useState<KhojAgent[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>('khoj');
+  const [agents, setAgents] = useState<EchoAgent[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [isLoadingAgents, setIsLoadingAgents] = useState(true);
 
   // 建议状态
   const [stepOneSuggestionOptions, setStepOneSuggestionOptions] = useState<StepOneSuggestion[]>(
@@ -98,26 +152,12 @@ const EchoAIHomePage = observer(() => {
   const [stepTwoSuggestionOptions, setStepTwoSuggestionOptions] = useState<StepTwoSuggestion[]>([]);
   const [selectedStepOneSuggestion, setSelectedStepOneSuggestion] = useState<StepOneSuggestion | null>(null);
 
-  // 检查服务状态
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const status = await api.khoj.getStatus.query();
-        setIsAvailable(status.success);
-      } catch (err) {
-        setIsAvailable(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    checkStatus();
-  }, []);
-
-  // 加载 Agent 列表
+  // 加载 Agent 列表 - 使用新的 Mastra API
   useEffect(() => {
     const loadAgents = async () => {
+      setIsLoadingAgents(true);
       try {
-        const result = await api.khoj.getAgents.query();
+        const result = await api.agent.getAgents.query();
         const validAgents = (result || []).filter(a => a !== null && a !== undefined);
         setAgents(validAgents);
         if (validAgents.length > 0) {
@@ -125,12 +165,12 @@ const EchoAIHomePage = observer(() => {
         }
       } catch (err) {
         console.error('加载 Agent 列表失败:', err);
+      } finally {
+        setIsLoadingAgents(false);
       }
     };
-    if (isAvailable) {
-      loadAgents();
-    }
-  }, [isAvailable]);
+    loadAgents();
+  }, []);
 
   // 生成问候语
   useEffect(() => {
@@ -171,30 +211,26 @@ const EchoAIHomePage = observer(() => {
     setChatInputFocus(ChatInputFocus.MESSAGE);
   }, []);
 
-  // 发送消息
+  // 发送消息 - 使用新的 Mastra API
   const handleSendMessage = useCallback(async (msg: string) => {
     if (!msg.trim() && images.length === 0) return;
     
     setProcessingMessage(true);
     try {
-      // 创建新对话
-      const result = await api.khoj.createConversation.mutate({
-        agentSlug: selectedAgent || undefined,
-      });
-      
-      if (result.conversation_id) {
-        // 存储消息到 localStorage，对话页面会读取
-        localStorage.setItem('echoai_pending_message', msg);
-        if (images.length > 0) {
-          localStorage.setItem('echoai_pending_images', JSON.stringify(images));
-        }
-        if (uploadedFiles.length > 0) {
-          localStorage.setItem('echoai_pending_files', JSON.stringify(uploadedFiles));
-        }
-        
-        // 跳转到对话页面
-        navigate(`/echoai?conversationId=${result.conversation_id}`);
+      // 存储消息到 localStorage，对话页面会读取
+      localStorage.setItem('echoai_pending_message', msg);
+      if (images.length > 0) {
+        localStorage.setItem('echoai_pending_images', JSON.stringify(images));
       }
+      if (uploadedFiles.length > 0) {
+        localStorage.setItem('echoai_pending_files', JSON.stringify(uploadedFiles));
+      }
+      if (selectedAgent) {
+        localStorage.setItem('echoai_pending_agent', selectedAgent);
+      }
+      
+      // 跳转到对话页面
+      navigate('/echoai');
     } catch (error) {
       console.error('创建对话失败:', error);
       setProcessingMessage(false);
@@ -215,36 +251,10 @@ const EchoAIHomePage = observer(() => {
   const isMobileWidth = typeof window !== 'undefined' && window.innerWidth < 768;
 
   // 加载中
-  if (isLoading) {
+  if (isLoadingAgents) {
     return (
       <div className="flex items-center justify-center h-full">
         <Spinner size="lg" />
-      </div>
-    );
-  }
-
-  // 服务不可用
-  if (!isAvailable) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center max-w-md p-8">
-          <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-danger/10 flex items-center justify-center">
-            <Icon icon="mdi:robot-dead-outline" className="w-12 h-12 text-danger/70" />
-          </div>
-          <h2 className="text-xl font-semibold mb-2">
-            {t('echoai-service-disconnected')}
-          </h2>
-          <p className="text-foreground/60 mb-4">
-            {t('echoai-not-connected')}
-          </p>
-          <Button
-            color="primary"
-            onPress={() => window.location.reload()}
-            startContent={<Icon icon="solar:refresh-linear" className="w-4 h-4" />}
-          >
-            {t('retry-connection')}
-          </Button>
-        </div>
       </div>
     );
   }
@@ -260,8 +270,8 @@ const EchoAIHomePage = observer(() => {
 
         {/* Agent 选择器 - 桌面端 */}
         {!isMobileWidth && agents.length > 0 && (
-          <ScrollShadow orientation="horizontal" className="w-full max-w-[600px] mb-6">
-            <div className="flex gap-2 pb-2 justify-center">
+          <ScrollShadow orientation="horizontal" className="w-full max-w-3xl mb-6">
+            <div className="flex gap-2 pb-2 justify-center flex-wrap">
               {agents.map((agent) => (
                 <AgentSelectCard
                   key={agent.slug}
@@ -292,7 +302,7 @@ const EchoAIHomePage = observer(() => {
                 conversationId={null}
                 isMobileWidth={isMobileWidth}
                 setUploadedFiles={setUploadedFiles}
-                agentColor={agents.find(a => a.slug === selectedAgent)?.color}
+                agentColor={agents.find(a => a.slug === selectedAgent)?.color ?? undefined}
                 setTriggeredAbort={() => {}}
               />
             </div>
@@ -388,7 +398,7 @@ const EchoAIHomePage = observer(() => {
             conversationId={null}
             isMobileWidth={isMobileWidth}
             setUploadedFiles={setUploadedFiles}
-            agentColor={agents.find(a => a.slug === selectedAgent)?.color}
+            agentColor={agents.find(a => a.slug === selectedAgent)?.color ?? undefined}
             setTriggeredAbort={() => {}}
           />
         </div>

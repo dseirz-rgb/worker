@@ -43,6 +43,12 @@ export class BaseStore implements Store {
       icon: 'mdi:magnify',
       group: 'main',
     },
+    {
+      title: 'daily-report',
+      href: '/echoai/report',
+      icon: 'mdi:file-document-outline',
+      group: 'main',
+    },
     // 工具箱
     {
       title: 'analytics',
@@ -242,6 +248,8 @@ export class BaseStore implements Store {
         this.currentTitle = 'echoai-home';
       } else if (location.pathname == '/echoai/search') {
         this.currentTitle = 'echoai-search';
+      } else if (location.pathname == '/echoai/report') {
+        this.currentTitle = 'daily-report';
       } else if (location.pathname == '/agents') {
         this.currentTitle = 'agents';
       } else if (location.pathname == '/automations') {

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Modal, ModalContent, ModalBody, Input, Button, Divider, ButtonGroup, Tooltip, Chip } from '@heroui/react';
+import { Modal, ModalContent, ModalBody, Input, Button, Divider } from '@heroui/react';
 import { Icon } from '@/components/Common/Iconify/icons';
 import { useTranslation } from 'react-i18next';
 import { RootStore } from '@/store';
@@ -18,16 +18,6 @@ import { LoadingAndEmpty } from '../Common/LoadingAndEmpty';
 import { useNavigate } from 'react-router-dom';
 import { getBlinkoEndpoint } from '@/lib/blinkoEndpoint';
 import { downloadFromLink } from '@/lib/tauriHelper';
-
-// 搜索模式类型
-type SearchMode = 'fast' | 'hybrid' | 'semantic';
-
-// 搜索模式配置
-const SEARCH_MODE_CONFIG: Record<SearchMode, { label: string; icon: string; alpha: number; description: string }> = {
-  fast: { label: '快速', icon: 'solar:bolt-bold', alpha: 0, description: '全文搜索 <100ms' },
-  hybrid: { label: '混合', icon: 'solar:layers-bold', alpha: 0.5, description: '结合全文和语义' },
-  semantic: { label: '语义', icon: 'solar:stars-bold', alpha: 1, description: '向量搜索，理解语义' },
-};
 
 interface GlobalSearchProps {
   isOpen: boolean;
@@ -80,9 +70,6 @@ export const GlobalSearch = observer(({ isOpen, onOpenChange }: GlobalSearchProp
   const aiStore = RootStore.Get(AiStore);
   const navigate = useNavigate()
   
-  // 搜索模式状态（默认快速搜索）
-  const [searchMode, setSearchMode] = useState<SearchMode>('fast');
-  
   // Move all state management to RootStore.Local
   const store = RootStore.Local(() => ({
     searchQuery: '',
@@ -109,12 +96,12 @@ export const GlobalSearch = observer(({ isOpen, onOpenChange }: GlobalSearchProp
       // Trigger search with loading state
       if (value) {
         this.isSearching = true;
-        debouncedSearch.current(value, searchMode);
+        debouncedSearch.current(value);
       } else if (!value) {
         this.searchResults = { notes: [], resources: [], settings: [], tags: [] };
         // Reset blinkoStore search text and reset list calls
         blinkoStore.searchText = '';
-        blinkoStore.globalSearchTerm = '';
+        (blinkoStore as { globalSearchTerm: string }).globalSearchTerm = '';
         blinkoStore.noteList.resetAndCall({ page: 1, size: 20 });
         blinkoStore.resourceList.resetAndCall({
           page: 1,
@@ -161,20 +148,18 @@ export const GlobalSearch = observer(({ isOpen, onOpenChange }: GlobalSearchProp
 
   // Create debounced search function - properly update search results after typing stops
   const debouncedSearch = useRef(
-    _.debounce(async (query: string, mode: SearchMode) => {
+    _.debounce(async (query: string) => {
       if (!query) {
         store.searchResults = { notes: [], resources: [], settings: [], tags: [] };
         store.isSearching = false;
         return;
       }
       // 1. Store the search query in the store
-      // @ts-expect-error - TypeScript 类型推断问题，debounce 回调中的闭包
       blinkoStore.searchText = query;
-      blinkoStore.globalSearchTerm = query;
+      (blinkoStore as { globalSearchTerm: string }).globalSearchTerm = query;
 
-      // 获取当前搜索模式的 alpha 值
-      const alpha = SEARCH_MODE_CONFIG[mode].alpha;
-      console.log(`[GlobalSearch] 搜索模式: ${mode}, alpha: ${alpha}, query: "${query}"`);
+      // 使用 PostgreSQL FTS 搜索
+      console.log(`[GlobalSearch] PostgreSQL FTS 搜索: "${query}"`);
 
       try {
         // Ensure AI retrieval flag is in sync for this call
@@ -187,7 +172,7 @@ export const GlobalSearch = observer(({ isOpen, onOpenChange }: GlobalSearchProp
         blinkoStore.searchText = query;
         // type: -1 means search all types (Memo, Note, Todo)
         // isArchived: null means search both archived and non-archived
-        // TODO: 当后端支持 alpha 参数时，传递 alpha 到 noteList API
+        // 使用 PostgreSQL FTS 搜索
         const notes = await blinkoStore.noteList.resetAndCall({ page: 1, size: 20, type: -1, isArchived: null });
         // await blinkoStore.blinkoList.resetAndCall({ page: 1, size: 20 });
         // 3. Search for resources using the API
@@ -222,16 +207,6 @@ export const GlobalSearch = observer(({ isOpen, onOpenChange }: GlobalSearchProp
       }
     }, 300),
   );
-
-  // 搜索模式变化时重新搜索
-  const handleSearchModeChange = useCallback((newMode: SearchMode) => {
-    setSearchMode(newMode);
-    // 如果有搜索内容，重新触发搜索
-    if (store.searchQuery) {
-      store.isSearching = true;
-      debouncedSearch.current(store.searchQuery, newMode);
-    }
-  }, [store, debouncedSearch]);
 
   // Key handling
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -361,37 +336,6 @@ export const GlobalSearch = observer(({ isOpen, onOpenChange }: GlobalSearchProp
       <ModalContent>
         <ModalBody className="py-4">
           <div className="flex flex-col gap-3">
-            {/* 搜索模式选择器 */}
-            <div className="flex items-center gap-2">
-              <ButtonGroup size="sm" variant="flat">
-                {(Object.entries(SEARCH_MODE_CONFIG) as [SearchMode, typeof SEARCH_MODE_CONFIG[SearchMode]][]).map(([key, cfg]) => (
-                  <Tooltip 
-                    key={key} 
-                    content={
-                      <div className="p-1">
-                        <p className="font-medium">{cfg.label}搜索</p>
-                        <p className="text-xs text-foreground/60">{cfg.description}</p>
-                      </div>
-                    }
-                    placement="bottom"
-                  >
-                    <Button
-                      isIconOnly
-                      color={searchMode === key ? 'primary' : 'default'}
-                      variant={searchMode === key ? 'solid' : 'flat'}
-                      onPress={() => handleSearchModeChange(key)}
-                      className="min-w-0"
-                    >
-                      <Icon icon={cfg.icon} className="w-4 h-4" />
-                    </Button>
-                  </Tooltip>
-                ))}
-              </ButtonGroup>
-              <Chip size="sm" variant="flat" color="default">
-                {SEARCH_MODE_CONFIG[searchMode].label}
-              </Chip>
-            </div>
-
             {/* Search Input */}
             <Input
               ref={searchInputRef}

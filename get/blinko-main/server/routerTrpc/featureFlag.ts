@@ -36,6 +36,11 @@ const PREDEFINED_FLAGS = [
     description: '混合模式：同时支持 Mastra 和 Khoj',
     defaultValue: true,
   },
+  {
+    key: 'use_native_documents',
+    description: '使用原生文档管理系统替代 Paperless-ngx',
+    defaultValue: false,
+  },
 ];
 
 export const featureFlagRouter = router({

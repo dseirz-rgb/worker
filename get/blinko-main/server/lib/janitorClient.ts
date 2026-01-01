@@ -29,11 +29,6 @@ export interface OllamaConfig {
   model: string;
 }
 
-// SeekDB 配置
-export interface SeekDBConfig {
-  auto_index: boolean;
-}
-
 // 单个分类配置
 export interface CategoryConfig {
   id?: string;
@@ -51,7 +46,6 @@ export interface JanitorFullConfig {
   output_base: string;
   confidence_threshold: number;
   categories: Record<string, CategoryConfig>;
-  seekdb: SeekDBConfig;
 }
 
 // 路径验证结果
@@ -370,9 +364,6 @@ export class JanitorClient {
       }
       if (config.ollama?.model !== undefined) {
         requestData.ollama_model = config.ollama.model;
-      }
-      if (config.seekdb?.auto_index !== undefined) {
-        requestData.seekdb_auto_index = config.seekdb.auto_index;
       }
       
       const response = await this.client.post('/config', requestData);

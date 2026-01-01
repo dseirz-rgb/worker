@@ -17,7 +17,6 @@
 | 📚 SeekDB API | http://localhost:8765 | 向量搜索服务 |
 | 🧹 Janitor API | http://localhost:8766 | AI 文件整理服务 |
 | 🤖 Khoj AI | http://localhost:42110 | AI 知识助手（直接访问） |
-| 📄 Paperless | http://localhost:8000 | 文档管理系统 |
 
 > **注意**：Khoj 在 Blinko 内嵌页面 (`/khoj`) 存在 CORS 问题，建议直接访问 http://localhost:42110 使用完整功能。
 
@@ -59,9 +58,6 @@ docker-compose -f docker-compose.dev.yml ps
 - `seekdb-api` - SeekDB API 服务
 - `janitor` - Janitor AI 整理服务
 - `khoj` - Khoj AI 助手 (匿名模式)
-- `paperless` - Paperless 文档管理
-- `paperless-db` - Paperless 数据库
-- `paperless-broker` - Paperless Redis
 
 ### 2. Blinko 前端
 
@@ -97,12 +93,6 @@ OPENAI_API_KEY=your_openai_api_key
 # 或本地 Ollama
 OLLAMA_HOST=http://host.docker.internal:11434
 ```
-
-## Paperless 配置
-
-默认管理员账号：
-- 用户名: `admin`
-- 密码: `admin`
 
 ## 常见问题
 
@@ -204,7 +194,6 @@ docker-compose -f docker-compose.dev.yml down
 | `echo_khoj_postgres_data` | Khoj 数据库 |
 | `echo_khoj_data` | Khoj 配置和索引 |
 | `echo_seekdb_data` | SeekDB 数据 |
-| `echo_paperless_*` | Paperless 数据 |
 
 清理数据：
 ```bash

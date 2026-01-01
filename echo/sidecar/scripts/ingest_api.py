@@ -5,32 +5,30 @@ Ingest API 服务
 提供文件上传和处理状态查询的 REST API。
 支持视频和 PPT 文件的异步处理。
 
+注意: SeekDB 已移除，此服务现在仅处理文件并生成内容。
+处理结果通过 Blinko 原生 embedding 功能进行向量化。
+
 启动方式: uvicorn ingest_api:app --host 0.0.0.0 --port 8766
 """
 
 import os
 import uuid
 import json
-import asyncio
 import logging
-from typing import Optional, List, Dict
+from typing import Optional, List
 from datetime import datetime
 from pathlib import Path
-from dataclasses import dataclass, asdict
 from enum import Enum
 from threading import Thread
 from queue import Queue, Empty
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-import mysql.connector
-from mysql.connector import Error as MySQLError
 
 # 导入处理器
-from video_processor import process_video, VideoChunk
-from ppt_processor import process_ppt, SlideContent
-from embedding_service import EmbeddingService
+from video_processor import process_video
+from ppt_processor import process_ppt
 
 # ============== 日志配置 ==============
 
@@ -42,12 +40,6 @@ logger = logging.getLogger(__name__)
 
 # ============== 配置 ==============
 
-SEEKDB_HOST = os.getenv('SEEKDB_HOST', 'localhost')
-SEEKDB_PORT = int(os.getenv('SEEKDB_PORT', '2881'))
-SEEKDB_USER = os.getenv('SEEKDB_USER', 'root')
-SEEKDB_PASSWORD = os.getenv('SEEKDB_PASSWORD', '')
-SEEKDB_DATABASE = os.getenv('SEEKDB_DATABASE', 'echo')
-
 # 文件存储路径
 _default_storage = Path(__file__).parent.parent / 'storage'
 STORAGE_PATH = Path(os.getenv('STORAGE_PATH', str(_default_storage)))
@@ -57,6 +49,9 @@ IMPORT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Whisper 模型配置
 WHISPER_MODEL = os.getenv('WHISPER_MODEL', 'base')
+
+# 任务存储 (内存存储，重启后丢失)
+_tasks_store: dict = {}
 
 # ============== 数据模型 ==============
 
@@ -87,6 +82,8 @@ class IngestTask(BaseModel):
     created_at: str
     updated_at: str
     completed_at: Optional[str] = None
+    # 处理结果 (用于返回给调用方)
+    chunks: Optional[List[dict]] = None
 
 
 class IngestResponse(BaseModel):
@@ -102,58 +99,6 @@ class TaskListResponse(BaseModel):
     total: int
 
 
-# ============== 数据库连接 ==============
-
-def get_db_connection():
-    """获取 SeekDB 数据库连接"""
-    try:
-        conn = mysql.connector.connect(
-            host=SEEKDB_HOST,
-            port=SEEKDB_PORT,
-            user=SEEKDB_USER,
-            password=SEEKDB_PASSWORD,
-            database=SEEKDB_DATABASE,
-            charset='utf8mb4',
-            collation='utf8mb4_unicode_ci',
-            use_unicode=True
-        )
-        return conn
-    except MySQLError as e:
-        logger.error(f"数据库连接失败: {e}")
-        raise HTTPException(status_code=503, detail=f"数据库连接失败: {e}")
-
-
-def init_ingest_tables():
-    """初始化 ingest 相关表"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        # 创建任务表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS ingest_tasks (
-                id VARCHAR(36) PRIMARY KEY,
-                file_path VARCHAR(500) NOT NULL,
-                file_type VARCHAR(20) NOT NULL,
-                status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
-                progress INT DEFAULT 0,
-                chunks_count INT DEFAULT 0,
-                error_message TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP NULL
-            )
-        """)
-        conn.commit()
-        logger.info("Ingest 表初始化完成")
-    except Exception as e:
-        logger.error(f"初始化表失败: {e}")
-    finally:
-        cursor.close()
-        conn.close()
-
-
-
 # ============== 任务队列管理 ==============
 
 class TaskQueue:
@@ -163,7 +108,6 @@ class TaskQueue:
         self._queue: Queue = Queue()
         self._worker_thread: Optional[Thread] = None
         self._running = False
-        self._embedding_service: Optional[EmbeddingService] = None
     
     def start(self):
         """启动工作线程"""
@@ -171,7 +115,6 @@ class TaskQueue:
             return
         
         self._running = True
-        self._embedding_service = EmbeddingService()
         self._worker_thread = Thread(target=self._worker_loop, daemon=True)
         self._worker_thread.start()
         logger.info("任务队列工作线程已启动")
@@ -224,15 +167,13 @@ class TaskQueue:
             else:
                 raise ValueError(f"不支持的文件类型: {file_type}")
             
-            # 保存到 knowledge_base
-            self._save_chunks(task_id, file_path, file_type, chunks)
-            
-            # 更新状态为完成
+            # 更新状态为完成，保存处理结果
             self._update_task_status(
                 task_id, 
                 TaskStatus.COMPLETED, 
                 progress=100,
-                chunks_count=len(chunks)
+                chunks_count=len(chunks),
+                chunks=chunks
             )
             logger.info(f"任务完成: {task_id}, 生成 {len(chunks)} 个块")
             
@@ -250,7 +191,7 @@ class TaskQueue:
         chunks = process_video(file_path, model=model)
         
         # 更新进度: 转录完成
-        self._update_task_status(task_id, TaskStatus.PROCESSING, progress=50)
+        self._update_task_status(task_id, TaskStatus.PROCESSING, progress=80)
         
         # 转换为字典格式
         result = []
@@ -260,21 +201,12 @@ class TaskQueue:
                 "metadata": {
                     "start_time": chunk.start_time,
                     "end_time": chunk.end_time,
-                    "chunk_index": i
+                    "chunk_index": i,
+                    "source_file": file_path,
+                    "source_type": "video"
                 }
             }
-            
-            # 生成 embedding (如果启用)
-            if options.get("generate_embedding", True) and self._embedding_service:
-                embedding = self._embedding_service.generate(chunk.text)
-                if embedding:
-                    chunk_dict["embedding"] = embedding
-            
             result.append(chunk_dict)
-            
-            # 更新进度
-            progress = 50 + int(40 * (i + 1) / len(chunks))
-            self._update_task_status(task_id, TaskStatus.PROCESSING, progress=progress)
         
         return result
     
@@ -286,7 +218,7 @@ class TaskQueue:
         slides = process_ppt(file_path)
         
         # 更新进度: 解析完成
-        self._update_task_status(task_id, TaskStatus.PROCESSING, progress=50)
+        self._update_task_status(task_id, TaskStatus.PROCESSING, progress=80)
         
         # 转换为字典格式
         result = []
@@ -295,60 +227,15 @@ class TaskQueue:
                 "content": slide.text,
                 "metadata": {
                     "page_number": slide.page_number,
-                    "title": slide.title
+                    "title": slide.title,
+                    "chunk_index": i,
+                    "source_file": file_path,
+                    "source_type": "ppt"
                 }
             }
-            
-            # 生成 embedding (如果启用)
-            if options.get("generate_embedding", True) and self._embedding_service:
-                embedding = self._embedding_service.generate(slide.text)
-                if embedding:
-                    slide_dict["embedding"] = embedding
-            
             result.append(slide_dict)
-            
-            # 更新进度
-            progress = 50 + int(40 * (i + 1) / len(slides))
-            self._update_task_status(task_id, TaskStatus.PROCESSING, progress=progress)
         
         return result
-    
-    def _save_chunks(self, task_id: str, file_path: str, file_type: str, chunks: List[dict]):
-        """保存处理结果到 knowledge_base"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        try:
-            for chunk in chunks:
-                chunk_id = str(uuid.uuid4())
-                content = chunk["content"]
-                metadata = json.dumps(chunk.get("metadata", {}), ensure_ascii=False)
-                embedding = chunk.get("embedding")
-                
-                # 构建 SQL
-                if embedding:
-                    embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
-                    cursor.execute("""
-                        INSERT INTO knowledge_base 
-                        (id, content, source_type, source_path, metadata, embedding)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (chunk_id, content, file_type, file_path, metadata, embedding_str))
-                else:
-                    cursor.execute("""
-                        INSERT INTO knowledge_base 
-                        (id, content, source_type, source_path, metadata)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (chunk_id, content, file_type, file_path, metadata))
-            
-            conn.commit()
-            logger.info(f"保存 {len(chunks)} 个块到 knowledge_base")
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"保存块失败: {e}")
-            raise
-        finally:
-            cursor.close()
-            conn.close()
     
     def _update_task_status(
         self, 
@@ -356,41 +243,31 @@ class TaskQueue:
         status: TaskStatus, 
         progress: int = None,
         chunks_count: int = None,
-        error: str = None
+        error: str = None,
+        chunks: List[dict] = None
     ):
-        """更新任务状态"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        """更新任务状态 (内存存储)"""
+        if task_id not in _tasks_store:
+            return
         
-        try:
-            updates = ["status = %s"]
-            params = [status.value]
-            
-            if progress is not None:
-                updates.append("progress = %s")
-                params.append(progress)
-            
-            if chunks_count is not None:
-                updates.append("chunks_count = %s")
-                params.append(chunks_count)
-            
-            if error is not None:
-                updates.append("error_message = %s")
-                params.append(error)
-            
-            if status == TaskStatus.COMPLETED:
-                updates.append("completed_at = NOW()")
-            
-            sql = f"UPDATE ingest_tasks SET {', '.join(updates)} WHERE id = %s"
-            params.append(task_id)
-            
-            cursor.execute(sql, params)
-            conn.commit()
-        except Exception as e:
-            logger.error(f"更新任务状态失败: {e}")
-        finally:
-            cursor.close()
-            conn.close()
+        task = _tasks_store[task_id]
+        task["status"] = status.value
+        task["updated_at"] = datetime.now().isoformat()
+        
+        if progress is not None:
+            task["progress"] = progress
+        
+        if chunks_count is not None:
+            task["chunks_count"] = chunks_count
+        
+        if error is not None:
+            task["error"] = error
+        
+        if chunks is not None:
+            task["chunks"] = chunks
+        
+        if status == TaskStatus.COMPLETED:
+            task["completed_at"] = datetime.now().isoformat()
 
 
 # 全局任务队列
@@ -401,8 +278,8 @@ task_queue = TaskQueue()
 
 app = FastAPI(
     title="Echo Ingest API",
-    description="文件处理和摄入 API - 支持视频和 PPT 文件",
-    version="1.0.0"
+    description="文件处理和摄入 API - 支持视频和 PPT 文件 (SeekDB 已移除)",
+    version="2.0.0"
 )
 
 # CORS 配置
@@ -418,8 +295,8 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """应用启动时初始化"""
-    init_ingest_tables()
     task_queue.start()
+    logger.info("Ingest API 已启动 (SeekDB 已移除，使用内存存储)")
 
 
 @app.on_event("shutdown")
@@ -436,6 +313,8 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "ingest-api",
+        "version": "2.0.0",
+        "note": "SeekDB removed, using in-memory storage",
         "timestamp": datetime.now().isoformat()
     }
 
@@ -445,7 +324,6 @@ async def health_check():
 @app.post("/upload", response_model=IngestResponse)
 async def upload_file(
     file: UploadFile = File(...),
-    generate_embedding: bool = Form(True),
     whisper_model: str = Form(WHISPER_MODEL)
 ):
     """
@@ -454,6 +332,8 @@ async def upload_file(
     支持的文件类型:
     - 视频: .mp4, .mkv, .avi, .mov, .webm
     - PPT: .pptx
+    
+    处理结果保存在内存中，可通过 /tasks/{task_id} 获取
     """
     # 检查文件类型
     filename = file.filename.lower()
@@ -480,23 +360,21 @@ async def upload_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"文件保存失败: {e}")
     
-    # 创建任务记录
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute("""
-            INSERT INTO ingest_tasks (id, file_path, file_type, status)
-            VALUES (%s, %s, %s, 'pending')
-        """, (task_id, str(save_path), file_type))
-        conn.commit()
-    except Exception as e:
-        # 删除已保存的文件
-        save_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail=f"创建任务失败: {e}")
-    finally:
-        cursor.close()
-        conn.close()
+    # 创建任务记录 (内存存储)
+    now = datetime.now().isoformat()
+    _tasks_store[task_id] = {
+        "task_id": task_id,
+        "file_path": str(save_path),
+        "file_type": file_type,
+        "status": "pending",
+        "progress": 0,
+        "chunks_count": 0,
+        "error": None,
+        "created_at": now,
+        "updated_at": now,
+        "completed_at": None,
+        "chunks": None
+    }
     
     # 加入处理队列
     task_queue.add_task(
@@ -504,7 +382,6 @@ async def upload_file(
         file_path=str(save_path),
         file_type=file_type,
         options={
-            "generate_embedding": generate_embedding,
             "whisper_model": whisper_model
         }
     )
@@ -535,21 +412,21 @@ async def process_file(request: IngestRequest):
     
     # 创建任务
     task_id = str(uuid.uuid4())
+    now = datetime.now().isoformat()
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute("""
-            INSERT INTO ingest_tasks (id, file_path, file_type, status)
-            VALUES (%s, %s, %s, 'pending')
-        """, (task_id, str(file_path), request.file_type))
-        conn.commit()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"创建任务失败: {e}")
-    finally:
-        cursor.close()
-        conn.close()
+    _tasks_store[task_id] = {
+        "task_id": task_id,
+        "file_path": str(file_path),
+        "file_type": request.file_type,
+        "status": "pending",
+        "progress": 0,
+        "chunks_count": 0,
+        "error": None,
+        "created_at": now,
+        "updated_at": now,
+        "completed_at": None,
+        "chunks": None
+    }
     
     # 加入处理队列
     task_queue.add_task(
@@ -570,32 +447,24 @@ async def process_file(request: IngestRequest):
 
 @app.get("/tasks/{task_id}", response_model=IngestTask)
 async def get_task_status(task_id: str):
-    """获取任务状态"""
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    """获取任务状态和处理结果"""
+    if task_id not in _tasks_store:
+        raise HTTPException(status_code=404, detail="任务不存在")
     
-    try:
-        cursor.execute("SELECT * FROM ingest_tasks WHERE id = %s", (task_id,))
-        row = cursor.fetchone()
-        
-        if not row:
-            raise HTTPException(status_code=404, detail="任务不存在")
-        
-        return IngestTask(
-            task_id=row['id'],
-            file_path=row['file_path'],
-            file_type=row['file_type'],
-            status=TaskStatus(row['status']),
-            progress=row['progress'] or 0,
-            chunks_count=row['chunks_count'] or 0,
-            error=row['error_message'],
-            created_at=row['created_at'].isoformat() if row['created_at'] else "",
-            updated_at=row['updated_at'].isoformat() if row['updated_at'] else "",
-            completed_at=row['completed_at'].isoformat() if row['completed_at'] else None
-        )
-    finally:
-        cursor.close()
-        conn.close()
+    task = _tasks_store[task_id]
+    return IngestTask(
+        task_id=task['task_id'],
+        file_path=task['file_path'],
+        file_type=task['file_type'],
+        status=TaskStatus(task['status']),
+        progress=task['progress'] or 0,
+        chunks_count=task['chunks_count'] or 0,
+        error=task['error'],
+        created_at=task['created_at'],
+        updated_at=task['updated_at'],
+        completed_at=task['completed_at'],
+        chunks=task.get('chunks')
+    )
 
 
 @app.get("/tasks", response_model=TaskListResponse)
@@ -605,121 +474,85 @@ async def list_tasks(
     offset: int = 0
 ):
     """获取任务列表"""
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    # 过滤任务
+    tasks = list(_tasks_store.values())
+    if status:
+        tasks = [t for t in tasks if t['status'] == status]
     
-    try:
-        # 构建查询
-        where_clause = ""
-        params = []
-        
-        if status:
-            where_clause = "WHERE status = %s"
-            params.append(status)
-        
-        # 获取总数
-        count_sql = f"SELECT COUNT(*) as total FROM ingest_tasks {where_clause}"
-        cursor.execute(count_sql, params)
-        total = cursor.fetchone()['total']
-        
-        # 获取列表
-        sql = f"""
-            SELECT * FROM ingest_tasks 
-            {where_clause}
-            ORDER BY created_at DESC
-            LIMIT %s OFFSET %s
-        """
-        cursor.execute(sql, params + [limit, offset])
-        rows = cursor.fetchall()
-        
-        tasks = [
+    # 排序 (按创建时间倒序)
+    tasks.sort(key=lambda x: x['created_at'], reverse=True)
+    
+    # 分页
+    total = len(tasks)
+    tasks = tasks[offset:offset + limit]
+    
+    return TaskListResponse(
+        tasks=[
             IngestTask(
-                task_id=row['id'],
-                file_path=row['file_path'],
-                file_type=row['file_type'],
-                status=TaskStatus(row['status']),
-                progress=row['progress'] or 0,
-                chunks_count=row['chunks_count'] or 0,
-                error=row['error_message'],
-                created_at=row['created_at'].isoformat() if row['created_at'] else "",
-                updated_at=row['updated_at'].isoformat() if row['updated_at'] else "",
-                completed_at=row['completed_at'].isoformat() if row['completed_at'] else None
+                task_id=t['task_id'],
+                file_path=t['file_path'],
+                file_type=t['file_type'],
+                status=TaskStatus(t['status']),
+                progress=t['progress'] or 0,
+                chunks_count=t['chunks_count'] or 0,
+                error=t['error'],
+                created_at=t['created_at'],
+                updated_at=t['updated_at'],
+                completed_at=t['completed_at']
             )
-            for row in rows
-        ]
-        
-        return TaskListResponse(tasks=tasks, total=total)
-    finally:
-        cursor.close()
-        conn.close()
+            for t in tasks
+        ],
+        total=total
+    )
 
 
 @app.post("/tasks/{task_id}/retry", response_model=IngestResponse)
 async def retry_task(task_id: str):
     """重试失败的任务"""
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    if task_id not in _tasks_store:
+        raise HTTPException(status_code=404, detail="任务不存在")
     
-    try:
-        cursor.execute("SELECT * FROM ingest_tasks WHERE id = %s", (task_id,))
-        row = cursor.fetchone()
-        
-        if not row:
-            raise HTTPException(status_code=404, detail="任务不存在")
-        
-        if row['status'] != 'failed':
-            raise HTTPException(status_code=400, detail="只能重试失败的任务")
-        
-        # 重置状态
-        cursor.execute("""
-            UPDATE ingest_tasks 
-            SET status = 'pending', progress = 0, error_message = NULL
-            WHERE id = %s
-        """, (task_id,))
-        conn.commit()
-        
-        # 重新加入队列
-        task_queue.add_task(
-            task_id=task_id,
-            file_path=row['file_path'],
-            file_type=row['file_type']
-        )
-        
-        return IngestResponse(
-            task_id=task_id,
-            status=TaskStatus.PENDING,
-            message="任务已重新加入队列"
-        )
-    finally:
-        cursor.close()
-        conn.close()
+    task = _tasks_store[task_id]
+    
+    if task['status'] != 'failed':
+        raise HTTPException(status_code=400, detail="只能重试失败的任务")
+    
+    # 重置状态
+    task['status'] = 'pending'
+    task['progress'] = 0
+    task['error'] = None
+    task['updated_at'] = datetime.now().isoformat()
+    
+    # 重新加入队列
+    task_queue.add_task(
+        task_id=task_id,
+        file_path=task['file_path'],
+        file_type=task['file_type']
+    )
+    
+    return IngestResponse(
+        task_id=task_id,
+        status=TaskStatus.PENDING,
+        message="任务已重新加入队列"
+    )
 
 
 @app.delete("/tasks/{task_id}")
 async def cancel_task(task_id: str):
     """取消/删除任务"""
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    if task_id not in _tasks_store:
+        raise HTTPException(status_code=404, detail="任务不存在")
     
-    try:
-        cursor.execute("SELECT * FROM ingest_tasks WHERE id = %s", (task_id,))
-        row = cursor.fetchone()
-        
-        if not row:
-            raise HTTPException(status_code=404, detail="任务不存在")
-        
-        # 只能取消 pending 状态的任务
-        if row['status'] == 'processing':
-            raise HTTPException(status_code=400, detail="无法取消正在处理的任务")
-        
-        # 删除任务记录
-        cursor.execute("DELETE FROM ingest_tasks WHERE id = %s", (task_id,))
-        conn.commit()
-        
-        return {"success": True, "message": "任务已删除"}
-    finally:
-        cursor.close()
-        conn.close()
+    task = _tasks_store[task_id]
+    
+    # 只能取消 pending 状态的任务
+    if task['status'] == 'processing':
+        raise HTTPException(status_code=400, detail="无法取消正在处理的任务")
+    
+    # 删除任务记录
+    del _tasks_store[task_id]
+    
+    return {"success": True, "message": "任务已删除"}
 
 
 # ============== 队列状态 ==============
@@ -727,30 +560,20 @@ async def cancel_task(task_id: str):
 @app.get("/queue/status")
 async def queue_status():
     """获取队列状态"""
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    tasks = list(_tasks_store.values())
     
-    try:
-        # 统计各状态任务数
-        cursor.execute("""
-            SELECT status, COUNT(*) as count 
-            FROM ingest_tasks 
-            GROUP BY status
-        """)
-        rows = cursor.fetchall()
-        
-        status_counts = {row['status']: row['count'] for row in rows}
-        
-        return {
-            "pending": status_counts.get('pending', 0),
-            "processing": status_counts.get('processing', 0),
-            "completed": status_counts.get('completed', 0),
-            "failed": status_counts.get('failed', 0),
-            "queue_running": task_queue._running
-        }
-    finally:
-        cursor.close()
-        conn.close()
+    status_counts = {}
+    for t in tasks:
+        s = t['status']
+        status_counts[s] = status_counts.get(s, 0) + 1
+    
+    return {
+        "pending": status_counts.get('pending', 0),
+        "processing": status_counts.get('processing', 0),
+        "completed": status_counts.get('completed', 0),
+        "failed": status_counts.get('failed', 0),
+        "queue_running": task_queue._running
+    }
 
 
 # ============== 启动入口 ==============

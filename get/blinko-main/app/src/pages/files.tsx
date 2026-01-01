@@ -4,7 +4,7 @@
  */
 
 import { observer } from 'mobx-react-lite';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollArea } from '@/components/Common/ScrollArea';
 import { LoadingAndEmpty } from '@/components/Common/LoadingAndEmpty';
@@ -16,9 +16,12 @@ import { FileSidebar } from '@/components/Files';
 import { FileList } from '@/components/Files';
 import { FileUpload } from '@/components/Files';
 import { FilePreview } from '@/components/Files';
-import { SearchModeSelector, useSearchMode, type SearchMode } from '@/components/Files';
+import { SearchModeSelector, useSearchMode } from '@/components/Files';
+import { BatchActionBar } from '@/components/Files';
+import { KeyboardShortcutsHelp } from '@/components/Files';
 import { useMediaQuery } from 'usehooks-ts';
 import { Link } from 'react-router-dom';
+import { useFileKeyboardShortcuts } from '@/hooks/useFileKeyboardShortcuts';
 
 // 类型定义
 interface PaperlessDocument {
@@ -136,8 +139,7 @@ const MOCK_DOCUMENTS: PaperlessDocument[] = [
   },
 ];
 
-// 是否使用 Mock 模式（当 SeekDB 未配置时自动启用）
-// 设置为 false 以连接真正的 SeekDB 服务
+// 是否使用 Mock 模式
 const USE_MOCK_MODE = false;
 
 const FilesPage = observer(() => {
@@ -154,6 +156,13 @@ const FilesPage = observer(() => {
   const [selectedDocument, setSelectedDocument] = useState<PaperlessDocument | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // 多选状态
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  
+  // 搜索框引用
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   // 搜索模式状态
   const { mode: searchMode, setMode: setSearchMode, getAlpha } = useSearchMode('fast');
@@ -268,42 +277,13 @@ const FilesPage = observer(() => {
       try {
         let result;
         if (searchQuery) {
-          // 根据搜索模式选择 API
-          const alpha = getAlpha(searchQuery);
-          
-          if (alpha > 0) {
-            // 深度搜索 (SeekDB 向量搜索)
-            const hybridResult = await api.paperless.hybridSearch.mutate({
-              query: searchQuery,
-              alpha,
-              limit: pageSize,
-            });
-            
-            // 转换结果格式
-            result = {
-              results: hybridResult.results.map(r => ({
-                id: parseInt(r.id) || 0,
-                title: r.source_path.split('/').pop() || r.content.slice(0, 50),
-                content: r.content,
-                created: r.created_at || new Date().toISOString(),
-                modified: r.created_at || new Date().toISOString(),
-                added: r.created_at || new Date().toISOString(),
-                correspondent: null,
-                document_type: null,
-                tags: [],
-                original_file_name: r.source_path.split('/').pop() || '',
-                score: r.score,
-              })),
-              count: hybridResult.total,
-            };
-          } else {
-            // 快速搜索 (PostgreSQL)
-            result = await api.paperless.searchDocuments.query({
-              query: searchQuery,
-              page: currentPage,
-              pageSize,
-            });
-          }
+          // 根据搜索模式选择 API - 仅使用 PostgreSQL FTS
+          // 快速搜索 (PostgreSQL)
+          result = await api.paperless.searchDocuments.query({
+            query: searchQuery,
+            page: currentPage,
+            pageSize,
+          });
         } else {
           // 无搜索词时，使用快速列表
           result = await api.paperless.listDocuments.query({
@@ -354,6 +334,77 @@ const FilesPage = observer(() => {
     // 刷新文档列表
     setCurrentPage(1);
   }, []);
+
+  // 清除选择
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds([]);
+    setFocusedIndex(-1);
+  }, []);
+
+  // 全选
+  const handleSelectAll = useCallback(() => {
+    setSelectedIds(documents.map(d => d.id));
+  }, [documents]);
+
+  // 键盘导航
+  const handleNavigatePrev = useCallback(() => {
+    setFocusedIndex(prev => Math.max(0, prev - 1));
+  }, []);
+
+  const handleNavigateNext = useCallback(() => {
+    setFocusedIndex(prev => Math.min(documents.length - 1, prev + 1));
+  }, [documents.length]);
+
+  // 网格导航（假设每行4个）
+  const COLS = 4;
+  const handleNavigateUp = useCallback(() => {
+    setFocusedIndex(prev => Math.max(0, prev - COLS));
+  }, []);
+
+  const handleNavigateDown = useCallback(() => {
+    setFocusedIndex(prev => Math.min(documents.length - 1, prev + COLS));
+  }, [documents.length]);
+
+  // 打开聚焦文档的预览
+  const handleOpenFocusedPreview = useCallback(() => {
+    if (focusedIndex >= 0 && focusedIndex < documents.length) {
+      setSelectedDocument(documents[focusedIndex]);
+      setIsPreviewOpen(true);
+    }
+  }, [focusedIndex, documents]);
+
+  // 删除选中文档
+  const handleDeleteSelected = useCallback(async () => {
+    if (selectedIds.length === 0) return;
+    // 批量删除由 BatchActionBar 处理
+  }, [selectedIds]);
+
+  // 快捷键支持
+  useFileKeyboardShortcuts({
+    enabled: true,
+    searchInputRef,
+    onOpenUpload: () => setIsUploadOpen(true),
+    onCloseModal: () => {
+      if (isPreviewOpen) {
+        setIsPreviewOpen(false);
+        setSelectedDocument(null);
+      } else if (isUploadOpen) {
+        setIsUploadOpen(false);
+      } else if (isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
+    },
+    onClearSelection: handleClearSelection,
+    onOpenPreview: handleOpenFocusedPreview,
+    onDelete: handleDeleteSelected,
+    onSelectAll: handleSelectAll,
+    onNavigatePrev: handleNavigatePrev,
+    onNavigateNext: handleNavigateNext,
+    onNavigateUp: handleNavigateUp,
+    onNavigateDown: handleNavigateDown,
+    isModalOpen: isPreviewOpen || isUploadOpen || isSidebarOpen,
+    hasSelection: selectedIds.length > 0 || focusedIndex >= 0,
+  });
 
   const refreshData = useCallback(async () => {
     setIsLoading(true);
@@ -468,6 +519,7 @@ const FilesPage = observer(() => {
 
           {/* 搜索框 */}
           <Input
+            ref={searchInputRef}
             placeholder={t('search-files') || '搜索文件...'}
             value={searchQuery}
             onValueChange={handleSearch}
@@ -509,6 +561,9 @@ const FilesPage = observer(() => {
           >
             <Icon icon="solar:refresh-linear" className="w-5 h-5" />
           </Button>
+
+          {/* 快捷键帮助 */}
+          {isPc && <KeyboardShortcutsHelp />}
 
           {/* 上传按钮 */}
           <Button
@@ -576,6 +631,11 @@ const FilesPage = observer(() => {
                 documentTypes={documentTypes}
                 onDocumentClick={handleDocumentClick}
                 onRefresh={refreshData}
+                selectable={true}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+                focusedIndex={focusedIndex}
+                onFocusChange={setFocusedIndex}
               />
               
               {/* 分页 */}
@@ -639,6 +699,19 @@ const FilesPage = observer(() => {
         tags={tags}
         documentTypes={documentTypes}
         onRefresh={refreshData}
+        isMobile={!isPc}
+      />
+
+      {/* 批量操作工具栏 */}
+      <BatchActionBar
+        selectedIds={selectedIds}
+        tags={tags}
+        documentTypes={documentTypes}
+        onClearSelection={handleClearSelection}
+        onActionComplete={() => {
+          handleClearSelection();
+          refreshData();
+        }}
       />
     </div>
   );

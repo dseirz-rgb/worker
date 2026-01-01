@@ -1,20 +1,12 @@
 /**
  * EchoAI 对话状态管理 Hook
  * 管理消息列表、对话切换、流式响应
+ * 基于 Mastra AI 服务
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { api } from '@/lib/trpc';
-import { getEchoAIBaseUrl } from '@/lib/echoaiService';
-import { 
-  processMessageChunk, 
-  createNewConversation,
-  generateNewTitle,
-  AttachedFileText,
-  Context,
-  OnlineContext,
-  CodeContext,
-} from '@/components/echoai/common/chatFunctions';
+import { AttachedFileText } from '@/components/echoai/common/chatFunctions';
 import { StreamMessage } from '@/components/echoai/chatHistory/chatHistory';
 import { AgentData } from '@/components/echoai/chatMessage/chatMessage';
 
@@ -84,18 +76,15 @@ export function useEchoAIChat(initialConversationId?: string): UseEchoAIChatRetu
   const abortControllerRef = useRef<AbortController | null>(null);
   const pendingMessageRef = useRef<string>('');
 
-  // 加载对话列表
+  // 加载对话列表 - 使用本地存储（Mastra 不需要外部对话管理）
   const loadConversations = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await api.khoj.getConversations.query();
-      // 映射 API 返回的类型到本地类型
-      const mapped: Conversation[] = (result || []).map((item: { id: string; title: string; created: string }) => ({
-        conversation_id: item.id,
-        slug: item.title,
-        created_at: item.created,
-      }));
-      setConversations(mapped);
+      // 从 localStorage 加载对话列表
+      const savedConversations = localStorage.getItem('echoai_conversations');
+      if (savedConversations) {
+        setConversations(JSON.parse(savedConversations));
+      }
     } catch (err) {
       console.error('加载对话列表失败:', err);
       setError('加载对话列表失败');
@@ -104,22 +93,32 @@ export function useEchoAIChat(initialConversationId?: string): UseEchoAIChatRetu
     }
   }, []);
 
-  // 创建新对话
-  const createConversation = useCallback(async (agentSlug?: string): Promise<string> => {
+  // 创建新对话 - 本地生成 ID
+  const createConversation = useCallback(async (_agentSlug?: string): Promise<string> => {
     try {
-      const conversationId = await createNewConversation(agentSlug);
+      const conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      const newConversation: Conversation = {
+        conversation_id: conversationId,
+        slug: '新对话',
+        created_at: new Date().toISOString(),
+      };
+      
       setCurrentConversationId(conversationId);
       setIncomingMessages([]);
       setTitle('新对话');
-      // 刷新对话列表
-      await loadConversations();
+      
+      // 保存到 localStorage
+      const updatedConversations = [newConversation, ...conversations];
+      setConversations(updatedConversations);
+      localStorage.setItem('echoai_conversations', JSON.stringify(updatedConversations));
+      
       return conversationId;
     } catch (err) {
       console.error('创建对话失败:', err);
       setError('创建对话失败');
       throw err;
     }
-  }, [loadConversations]);
+  }, [conversations]);
 
   // 切换对话
   const switchConversation = useCallback((id: string) => {
@@ -129,10 +128,9 @@ export function useEchoAIChat(initialConversationId?: string): UseEchoAIChatRetu
     setTitle('');
   }, []);
 
-  // 删除对话
+  // 删除对话 - 本地删除
   const deleteConversation = useCallback(async (id: string) => {
     try {
-      await api.khoj.deleteConversation.mutate({ id });
       // 如果删除的是当前对话，切换到其他对话
       if (id === currentConversationId) {
         const remaining = conversations.filter(c => c.conversation_id !== id);
@@ -142,15 +140,21 @@ export function useEchoAIChat(initialConversationId?: string): UseEchoAIChatRetu
           setCurrentConversationId(null);
         }
       }
-      // 刷新对话列表
-      await loadConversations();
+      
+      // 从 localStorage 删除
+      const updatedConversations = conversations.filter(c => c.conversation_id !== id);
+      setConversations(updatedConversations);
+      localStorage.setItem('echoai_conversations', JSON.stringify(updatedConversations));
+      
+      // 删除对话消息
+      localStorage.removeItem(`echoai_messages_${id}`);
     } catch (err) {
       console.error('删除对话失败:', err);
       setError('删除对话失败');
     }
-  }, [currentConversationId, conversations, loadConversations, switchConversation]);
+  }, [currentConversationId, conversations, switchConversation]);
 
-  // 发送消息
+  // 发送消息 - 使用 Mastra Agent API
   const sendMessage = useCallback(async (
     message: string, 
     images?: string[], 
@@ -192,98 +196,47 @@ export function useEchoAIChat(initialConversationId?: string): UseEchoAIChatRetu
     // 创建中断控制器
     abortControllerRef.current = new AbortController();
 
-    let context: Context[] = [];
-    let onlineContext: OnlineContext = {};
-    let codeContext: CodeContext = {};
-
     try {
-      // 通过后端代理调用 Khoj API，避免 CORS 问题
-      const response = await fetch(`/api/khoj/chat?stream=true`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          q: message,
-          conversation_id: conversationId,
-          ...(agent?.slug && { agent: agent.slug }),
-        }),
-        signal: abortControllerRef.current.signal,
+      // 使用 Mastra Agent API 进行对话
+      const agentId = agent?.slug ? parseInt(agent.slug) || 1 : 1;
+      
+      // 构建消息历史
+      const messages = [
+        { role: 'user' as const, content: message }
+      ];
+      
+      const response = await api.agent.chatWithAgent.mutate({
+        agentId,
+        messages,
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-
-          // 更新消息
-          setIncomingMessages(prev => {
-            const updated = [...prev];
-            const lastIndex = updated.length - 1;
-            if (lastIndex >= 0) {
-              // 类型转换以兼容 processMessageChunk
-              const currentMsg = updated[lastIndex] as unknown as Parameters<typeof processMessageChunk>[1];
-              const result = processMessageChunk(
-                line,
-                currentMsg,
-                context,
-                onlineContext,
-                codeContext
-              );
-              context = result.context;
-              onlineContext = result.onlineContext;
-              codeContext = result.codeContext;
-            }
-            return [...updated];
-          });
-        }
-      }
-
-      // 处理剩余的 buffer
-      if (buffer.trim()) {
-        setIncomingMessages(prev => {
-          const updated = [...prev];
-          const lastIndex = updated.length - 1;
-          if (lastIndex >= 0) {
-            // 类型转换以兼容 processMessageChunk
-            const currentMsg = updated[lastIndex] as unknown as Parameters<typeof processMessageChunk>[1];
-            processMessageChunk(buffer, currentMsg, context, onlineContext, codeContext);
-          }
-          return [...updated];
-        });
-      }
-
-      // 标记完成
+      // 更新消息 - AgentResponse 返回 { text: string }
       setIncomingMessages(prev => {
         const updated = [...prev];
         const lastIndex = updated.length - 1;
         if (lastIndex >= 0) {
-          updated[lastIndex] = { ...updated[lastIndex], completed: true };
+          updated[lastIndex] = {
+            ...updated[lastIndex],
+            rawResponse: response.text || '',
+            completed: true,
+          };
         }
         return updated;
       });
 
-      // 生成标题
-      if (conversationId && incomingMessages.length === 0) {
-        generateNewTitle(conversationId, setTitle);
+      // 生成标题（使用第一条消息）
+      if (incomingMessages.length === 0) {
+        const newTitle = message.slice(0, 30) + (message.length > 30 ? '...' : '');
+        setTitle(newTitle);
+        
+        // 更新对话标题
+        const updatedConversations = conversations.map(c => 
+          c.conversation_id === conversationId 
+            ? { ...c, slug: newTitle }
+            : c
+        );
+        setConversations(updatedConversations);
+        localStorage.setItem('echoai_conversations', JSON.stringify(updatedConversations));
       }
 
     } catch (err) {
@@ -292,6 +245,20 @@ export function useEchoAIChat(initialConversationId?: string): UseEchoAIChatRetu
       } else {
         console.error('发送消息失败:', err);
         setError('发送消息失败');
+        
+        // 标记消息失败
+        setIncomingMessages(prev => {
+          const updated = [...prev];
+          const lastIndex = updated.length - 1;
+          if (lastIndex >= 0) {
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              rawResponse: '抱歉，发送消息失败，请重试。',
+              completed: true,
+            };
+          }
+          return updated;
+        });
       }
     } finally {
       setIsSending(false);
@@ -299,7 +266,7 @@ export function useEchoAIChat(initialConversationId?: string): UseEchoAIChatRetu
       pendingMessageRef.current = '';
       abortControllerRef.current = null;
     }
-  }, [currentConversationId, agent, createConversation, incomingMessages.length]);
+  }, [currentConversationId, agent, createConversation, incomingMessages.length, conversations]);
 
   // 重试消息
   const retryMessage = useCallback((query: string, turnId?: string) => {

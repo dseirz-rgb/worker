@@ -18,6 +18,9 @@ import { DailyReportJob } from './jobs/dailyReportJob';
 // 统一 API 网关健康监控
 import { healthMonitor } from './lib/healthMonitor';
 
+// AI 工具注册
+import { registerBuiltinTools } from './aiServer/tools/builtinTools';
+
 // tRPC related imports
 import { createContext } from './context';
 import { appRouter } from './routerTrpc/_app';
@@ -37,7 +40,7 @@ import pluginRouter from './routerExpress/file/plugin';
 import rssRouter from './routerExpress/rss';
 import openaiRouter from './routerExpress/openai';
 import mcpRouter from './routerExpress/mcp';
-import khojRouter from './routerExpress/khoj';
+// Khoj 已整合到 Mastra，移除独立后端依赖
 
 // Vite integration
 import ViteExpress from 'vite-express';
@@ -196,7 +199,6 @@ async function setupApiRoutes(app: express.Application) {
 
   // Other API endpoints
   app.use('/api/rss', rssRouter);
-  app.use('/api/khoj', khojRouter);
   app.use('/v1', openaiRouter);
 
   // OpenAPI documentation endpoints
@@ -281,6 +283,10 @@ async function bootstrap() {
 
     // Initialize scheduled jobs
     await initializeJobs();
+
+    // 注册 AI 内置工具
+    registerBuiltinTools();
+    console.log('🔧 AI builtin tools registered');
 
     // 启动 API 网关健康监控
     healthMonitor.start();

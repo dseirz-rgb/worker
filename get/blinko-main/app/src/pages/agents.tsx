@@ -109,15 +109,12 @@ const AgentCard = ({
           </p>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <Button
             size="sm"
             color="primary"
             variant="flat"
-            onPress={(e) => {
-              e.stopPropagation();
-              onChat();
-            }}
+            onPress={() => onChat()}
             startContent={<Icon icon="solar:chat-round-dots-linear" className="w-4 h-4" />}
           >
             对话
@@ -126,10 +123,7 @@ const AgentCard = ({
             size="sm"
             variant="flat"
             isIconOnly
-            onPress={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
+            onPress={() => onEdit()}
           >
             <Icon icon="solar:pen-linear" className="w-4 h-4" />
           </Button>
@@ -138,10 +132,7 @@ const AgentCard = ({
             variant="flat"
             color="danger"
             isIconOnly
-            onPress={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
+            onPress={() => onDelete()}
           >
             <Icon icon="solar:trash-bin-trash-linear" className="w-4 h-4" />
           </Button>

@@ -14,7 +14,6 @@ import { ExportSetting } from '@/components/BlinkoSettings/ExportSetting';
 import { MusicSetting } from '@/components/BlinkoSettings/MusicSetting';
 import { SSOSetting } from '@/components/BlinkoSettings/SSOSetting';
 import { HttpProxySetting } from '@/components/BlinkoSettings/HttpProxySetting';
-import { PaperlessSetting } from '@/components/BlinkoSettings/PaperlessSetting';
 import { JanitorSetting } from '@/components/BlinkoSettings/JanitorSetting';
 import { EchoAISetting } from '@/components/BlinkoSettings/EchoAISetting';
 import { DataFlowGuide } from '@/components/BlinkoSettings/DataFlowGuide';
@@ -104,14 +103,6 @@ export const allSettings: SettingItem[] = [
     keywords: ['storage', 'database', '存储', '数据库'],
   },
   {
-    key: 'paperless',
-    title: ('file-management'),
-    icon: 'solar:folder-with-files-bold-duotone',
-    component: <PaperlessSetting />,
-    requireAdmin: true,
-    keywords: ['paperless', 'files', 'documents', 'ocr', '文件管理', '文档', 'OCR'],
-  },
-  {
     key: 'janitor',
     title: 'AI 文件整理',
     icon: 'solar:magic-stick-3-bold-duotone',
@@ -133,7 +124,7 @@ export const allSettings: SettingItem[] = [
     icon: 'solar:routing-2-bold-duotone',
     component: null, // 将在 Page 组件中动态设置
     requireAdmin: true,
-    keywords: ['dataflow', 'flow', 'pipeline', '数据流', '流程', '处理', 'echo', 'seekdb', 'janitor'],
+    keywords: ['dataflow', 'flow', 'pipeline', '数据流', '流程', '处理', 'echo', 'janitor'],
   },
   {
     key: 'music',

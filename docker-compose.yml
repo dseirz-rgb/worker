@@ -1,12 +1,11 @@
 # Echo 统一服务编排
-# 一键启动所有服务：Blinko UI + PostgreSQL + SeekDB + Janitor
+# 一键启动所有服务：Blinko UI + PostgreSQL + Janitor
 #
 # 使用方法：
 #   docker-compose up -d
 #
 # 访问：
 #   - Blinko UI: http://localhost:1111
-#   - SeekDB API: http://localhost:8765
 #   - Janitor API: http://localhost:8000
 
 version: '3.8'
@@ -46,63 +45,12 @@ services:
       - NEXT_PUBLIC_BASE_URL=http://localhost:1111
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-my_ultra_secure_nextauth_secret}
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-mysecretpassword}@postgres:5432/blinko
-      - SEEKDB_API_URL=http://seekdb-api:8765
       - JANITOR_API_URL=http://janitor:8000
     depends_on:
       postgres:
         condition: service_healthy
-      seekdb-api:
-        condition: service_healthy
       janitor:
         condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - echo-network
-
-  # ============ SeekDB 数据库 ============
-  seekdb:
-    image: oceanbase/seekdb:latest
-    container_name: echo-seekdb
-    environment:
-      - MYSQL_ROOT_PASSWORD=${SEEKDB_PASSWORD:-}
-    volumes:
-      - seekdb_data:/home/admin/oceanbase/store
-    healthcheck:
-      test: ["CMD", "mysql", "-h", "127.0.0.1", "-P", "2881", "-u", "root", "-e", "SELECT 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-    restart: unless-stopped
-    networks:
-      - echo-network
-
-  # ============ SeekDB API 服务 ============
-  seekdb-api:
-    build:
-      context: ./echo/sidecar
-      dockerfile: Dockerfile
-    container_name: echo-seekdb-api
-    ports:
-      - "8765:8765"
-    environment:
-      - SEEKDB_HOST=seekdb
-      - SEEKDB_PORT=2881
-      - SEEKDB_USER=root
-      - SEEKDB_PASSWORD=${SEEKDB_PASSWORD:-}
-      - SEEKDB_DATABASE=echo
-      - API_PORT=8765
-    volumes:
-      - seekdb_storage:/app/storage
-    depends_on:
-      seekdb:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
     restart: unless-stopped
     networks:
       - echo-network
@@ -117,8 +65,6 @@ services:
       - "8000:8000"
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
-      - SEEKDB_API_URL=http://seekdb-api:8765
-      - SEEKDB_AUTO_INDEX=true
     volumes:
       - ${INBOX_PATH:-./inbox}:/data/inbox
       - janitor_logs:/app/logs
@@ -134,10 +80,6 @@ services:
 
 volumes:
   postgres_data:
-    driver: local
-  seekdb_data:
-    driver: local
-  seekdb_storage:
     driver: local
   janitor_logs:
     driver: local

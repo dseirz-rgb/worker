@@ -1,18 +1,13 @@
 /**
  * 文件管理 tRPC 路由
  * 
- * 双层架构:
- * - 快速层 (PostgreSQL): 文件列表、标签、文档类型、快速关键词搜索
- * - 深度搜索层 (SeekDB): 语义/向量搜索 - 仅在用户明确请求时使用
+ * 使用 PostgreSQL 进行文件管理和搜索
+ * - 文件列表、标签、文档类型
+ * - 基于 pg_trgm 的快速关键词搜索
  */
 
 import { router, authProcedure } from '../middleware';
 import { z } from 'zod';
-import { 
-  SeekDBError, 
-  createSeekDBClient,
-  DEFAULT_SEEKDB_CONFIG,
-} from '../lib/seekdbClient';
 import { 
   getPostgresSearchService,
   type SearchFilters,
@@ -24,18 +19,10 @@ import { prisma } from '../prisma';
 // ============ 辅助函数 ============
 
 /**
- * 获取 PostgreSQL 搜索服务（快速操作）
+ * 获取 PostgreSQL 搜索服务
  */
 function getPostgresService() {
   return getPostgresSearchService();
-}
-
-/**
- * 获取 SeekDB 客户端（仅用于深度搜索）
- */
-function getSeekDBClient() {
-  const baseUrl = process.env.SEEKDB_API_URL || DEFAULT_SEEKDB_CONFIG.baseUrl;
-  return createSeekDBClient({ baseUrl });
 }
 
 // ============ 输入验证 Schema ============
@@ -60,35 +47,6 @@ const fastSearchInput = z.object({
   pageSize: z.number().min(1).max(100).default(20),
   accountId: z.number().optional(),
   type: z.string().optional(),
-});
-
-// 深度搜索输入 (SeekDB 向量搜索)
-const deepSearchInput = z.object({
-  query: z.string().min(1),
-  alpha: z.number().min(0).max(1).default(0.7), // 默认偏向向量搜索
-  sourceType: z.string().optional(),
-  limit: z.number().min(1).max(100).default(20),
-});
-
-// 混合搜索结果 schema
-const hybridSearchResultSchema = z.object({
-  id: z.string(),
-  content: z.string(),
-  source_type: z.string(),
-  source_path: z.string(),
-  metadata: z.record(z.string(), z.unknown()),
-  score: z.number(),
-  text_score: z.number().nullable().optional(),
-  vector_score: z.number().nullable().optional(),
-  created_at: z.string().nullable().optional(),
-});
-
-const hybridSearchResponseSchema = z.object({
-  results: z.array(hybridSearchResultSchema),
-  total: z.number(),
-  query: z.string(),
-  alpha: z.number(),
-  embedding_available: z.boolean(),
 });
 
 const uploadDocumentInput = z.object({
@@ -644,9 +602,8 @@ export const paperlessRouter = router({
       enabled: z.boolean(),
     }).nullable())
     .query(async () => {
-      const baseUrl = process.env.SEEKDB_API_URL || DEFAULT_SEEKDB_CONFIG.baseUrl;
       return {
-        baseUrl,
+        baseUrl: 'postgresql://localhost',
         apiToken: 'not-required',
         enabled: true,
       };
@@ -666,22 +623,12 @@ export const paperlessRouter = router({
       } 
     })
     .input(z.object({
-      baseUrl: z.string(),
+      baseUrl: z.string().optional(),
       apiToken: z.string().optional(),
       enabled: z.boolean().default(true),
     }))
     .output(z.object({ success: z.boolean() }))
-    .mutation(async ({ input }) => {
-      // 测试 SeekDB 连接（如果提供了 URL）
-      if (input.baseUrl) {
-        try {
-          const client = createSeekDBClient({ baseUrl: input.baseUrl });
-          await client.testConnection();
-        } catch {
-          // SeekDB 连接失败不影响基本功能
-          console.warn('SeekDB 连接测试失败，深度搜索功能可能不可用');
-        }
-      }
+    .mutation(async () => {
       return { success: true };
     }),
 
@@ -699,18 +646,16 @@ export const paperlessRouter = router({
       } 
     })
     .input(z.object({
-      baseUrl: z.string(),
+      baseUrl: z.string().optional(),
       apiToken: z.string().optional(),
     }))
     .output(z.object({ 
       success: z.boolean(), 
       error: z.string().nullable(),
       postgresOk: z.boolean(),
-      seekdbOk: z.boolean(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async () => {
       let postgresOk = false;
-      let seekdbOk = false;
       let error: string | null = null;
       
       // 测试 PostgreSQL
@@ -721,147 +666,11 @@ export const paperlessRouter = router({
         error = `PostgreSQL 连接失败: ${e instanceof Error ? e.message : '未知错误'}`;
       }
       
-      // 测试 SeekDB（可选）
-      if (input.baseUrl) {
-        try {
-          const client = createSeekDBClient({ baseUrl: input.baseUrl });
-          await client.testConnection();
-          seekdbOk = true;
-        } catch (e) {
-          // SeekDB 失败不是致命错误
-          console.warn('SeekDB 连接失败:', e);
-        }
-      }
-      
       return { 
         success: postgresOk, 
         error,
         postgresOk,
-        seekdbOk,
       };
-    }),
-
-  // ============ 深度搜索 API (SeekDB) ============
-
-  /**
-   * 深度搜索（向量 + 全文）
-   * 仅在用户明确请求时使用
-   * 
-   * alpha 参数控制搜索权重:
-   * - alpha = 0: 纯全文搜索
-   * - alpha = 1: 纯向量搜索
-   * - 0 < alpha < 1: 混合搜索
-   */
-  hybridSearch: authProcedure
-    .meta({ 
-      openapi: { 
-        method: 'POST', 
-        path: '/v1/paperless/search/hybrid', 
-        summary: '深度搜索（向量+全文）', 
-        protect: true, 
-        tags: ['Paperless'] 
-      } 
-    })
-    .input(deepSearchInput)
-    .output(hybridSearchResponseSchema)
-    .mutation(async ({ input }) => {
-      try {
-        const client = getSeekDBClient();
-        return await client.hybridSearch({
-          query: input.query,
-          alpha: input.alpha,
-          source_type: input.sourceType,
-          limit: input.limit,
-        });
-      } catch (error) {
-        // SeekDB 不可用时，回退到 PostgreSQL 搜索
-        console.warn('SeekDB 不可用，回退到 PostgreSQL 搜索:', error);
-        
-        const service = getPostgresService();
-        const result = await service.search(input.query, {}, 1, input.limit);
-        
-        return {
-          results: result.results.map(r => ({
-            id: String(r.id),
-            content: r.name,
-            source_type: r.type,
-            source_path: r.path,
-            metadata: r.metadata || {},
-            score: r.score,
-            text_score: r.score,
-            vector_score: null,
-            created_at: r.createdAt.toISOString(),
-          })),
-          total: result.total,
-          query: input.query,
-          alpha: 0,  // 回退到纯文本搜索
-          embedding_available: false,
-        };
-      }
-    }),
-
-  /**
-   * 获取 embedding 服务状态
-   */
-  getEmbeddingStatus: authProcedure
-    .meta({ 
-      openapi: { 
-        method: 'GET', 
-        path: '/v1/paperless/embedding/status', 
-        summary: '获取 embedding 服务状态', 
-        protect: true, 
-        tags: ['Paperless'] 
-      } 
-    })
-    .input(z.void())
-    .output(z.object({
-      available: z.boolean(),
-      model: z.string(),
-      host: z.string(),
-    }))
-    .query(async () => {
-      try {
-        const client = getSeekDBClient();
-        return await client.getEmbeddingStatus();
-      } catch {
-        return {
-          available: false,
-          model: 'unknown',
-          host: 'unknown',
-        };
-      }
-    }),
-
-  /**
-   * 生成文本 embedding
-   */
-  generateEmbedding: authProcedure
-    .meta({ 
-      openapi: { 
-        method: 'POST', 
-        path: '/v1/paperless/embedding/generate', 
-        summary: '生成文本 embedding', 
-        protect: true, 
-        tags: ['Paperless'] 
-      } 
-    })
-    .input(z.object({ text: z.string().min(1) }))
-    .output(z.object({
-      embedding: z.array(z.number()).nullable(),
-      success: z.boolean(),
-      error: z.string().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      try {
-        const client = getSeekDBClient();
-        return await client.generateEmbedding(input.text);
-      } catch (error) {
-        return {
-          embedding: null,
-          success: false,
-          error: error instanceof SeekDBError ? error.message : '生成 embedding 失败',
-        };
-      }
     }),
 
   // ============ 统计信息 ============

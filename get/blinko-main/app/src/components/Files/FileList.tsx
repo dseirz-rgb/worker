@@ -1,12 +1,12 @@
 /**
  * 文件列表组件
- * 显示文档卡片网格
+ * 显示文档卡片网格，支持多选
  */
 
 import { memo, useCallback, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/components/Common/Iconify/icons';
-import { Button, Chip, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from '@heroui/react';
+import { Button, Chip, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Checkbox } from '@heroui/react';
 import { motion } from 'framer-motion';
 import { api } from '@/lib/trpc';
 import dayjs from 'dayjs';
@@ -46,6 +46,16 @@ interface FileListProps {
   documentTypes: PaperlessDocumentType[];
   onDocumentClick: (doc: PaperlessDocument) => void;
   onRefresh: () => void;
+  /** 是否启用多选模式 */
+  selectable?: boolean;
+  /** 选中的文档 ID 列表 */
+  selectedIds?: number[];
+  /** 选择变化回调 */
+  onSelectionChange?: (ids: number[]) => void;
+  /** 当前聚焦的文档索引（用于键盘导航） */
+  focusedIndex?: number;
+  /** 聚焦变化回调 */
+  onFocusChange?: (index: number) => void;
 }
 
 export const FileList = memo(({
@@ -54,8 +64,45 @@ export const FileList = memo(({
   documentTypes,
   onDocumentClick,
   onRefresh,
+  selectable = false,
+  selectedIds = [],
+  onSelectionChange,
+  focusedIndex = -1,
+  onFocusChange,
 }: FileListProps) => {
   const { t } = useTranslation();
+
+  // 处理选择变化
+  const handleSelect = useCallback((docId: number, isSelected: boolean, event?: React.MouseEvent) => {
+    if (!onSelectionChange) return;
+    
+    // Ctrl/Cmd+Click 切换单个选择
+    // Shift+Click 范围选择（简化实现）
+    if (event?.shiftKey && selectedIds.length > 0) {
+      // 范围选择：从最后选中的到当前
+      const lastSelectedIndex = documents.findIndex(d => d.id === selectedIds[selectedIds.length - 1]);
+      const currentIndex = documents.findIndex(d => d.id === docId);
+      const start = Math.min(lastSelectedIndex, currentIndex);
+      const end = Math.max(lastSelectedIndex, currentIndex);
+      const rangeIds = documents.slice(start, end + 1).map(d => d.id);
+      const newIds = [...new Set([...selectedIds, ...rangeIds])];
+      onSelectionChange(newIds);
+    } else if (event?.ctrlKey || event?.metaKey) {
+      // 切换单个
+      if (isSelected) {
+        onSelectionChange(selectedIds.filter(id => id !== docId));
+      } else {
+        onSelectionChange([...selectedIds, docId]);
+      }
+    } else {
+      // 普通点击：切换选择
+      if (isSelected) {
+        onSelectionChange(selectedIds.filter(id => id !== docId));
+      } else {
+        onSelectionChange([...selectedIds, docId]);
+      }
+    }
+  }, [documents, selectedIds, onSelectionChange]);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -68,6 +115,11 @@ export const FileList = memo(({
           onClick={() => onDocumentClick(doc)}
           onRefresh={onRefresh}
           index={index}
+          selectable={selectable}
+          isSelected={selectedIds.includes(doc.id)}
+          isFocused={focusedIndex === index}
+          onSelect={(isSelected, event) => handleSelect(doc.id, isSelected, event)}
+          onFocus={() => onFocusChange?.(index)}
         />
       ))}
     </div>
@@ -84,6 +136,16 @@ interface FileCardProps {
   onClick: () => void;
   onRefresh: () => void;
   index: number;
+  /** 是否可选择 */
+  selectable?: boolean;
+  /** 是否已选中 */
+  isSelected?: boolean;
+  /** 是否聚焦 */
+  isFocused?: boolean;
+  /** 选择回调 */
+  onSelect?: (isSelected: boolean, event?: React.MouseEvent) => void;
+  /** 聚焦回调 */
+  onFocus?: () => void;
 }
 
 const FileCard = memo(({
@@ -93,6 +155,11 @@ const FileCard = memo(({
   onClick,
   onRefresh,
   index,
+  selectable = false,
+  isSelected = false,
+  isFocused = false,
+  onSelect,
+  onFocus,
 }: FileCardProps) => {
   const { t } = useTranslation();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -135,14 +202,32 @@ const FileCard = memo(({
     }
   }, [doc.id, t, onRefresh]);
 
+  // 处理点击
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    // 如果是可选择模式且点击了 checkbox 区域，不触发预览
+    if (selectable && (e.target as HTMLElement).closest('.select-checkbox')) {
+      return;
+    }
+    onClick();
+  }, [selectable, onClick]);
+
+  // 处理选择
+  const handleSelectClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect?.(!isSelected, e);
+  }, [isSelected, onSelect]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, duration: 0.3 }}
-      className="group relative bg-content1 rounded-xl border border-divider overflow-hidden
-        hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer"
-      onClick={onClick}
+      className={`group relative bg-content1 rounded-xl border overflow-hidden
+        hover:shadow-lg transition-all cursor-pointer
+        ${isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-divider hover:border-primary/30'}
+        ${isFocused ? 'ring-2 ring-primary/40' : ''}`}
+      onClick={handleClick}
+      onMouseEnter={onFocus}
     >
       {/* 缩略图区域 */}
       <div className="relative aspect-[4/3] bg-default-100 overflow-hidden">
@@ -161,8 +246,26 @@ const FileCard = memo(({
           </div>
         )}
         
+        {/* 选择 Checkbox */}
+        {selectable && (
+          <div 
+            className={`select-checkbox absolute top-2 left-2 z-10 transition-opacity ${
+              isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}
+            onClick={handleSelectClick}
+          >
+            <Checkbox
+              isSelected={isSelected}
+              size="lg"
+              classNames={{
+                wrapper: 'bg-background/80 backdrop-blur-sm rounded',
+              }}
+            />
+          </div>
+        )}
+        
         {/* 文件类型标签 */}
-        <div className="absolute top-2 left-2">
+        <div className={`absolute top-2 ${selectable ? 'left-10' : 'left-2'}`}>
           <Chip size="sm" variant="flat" className="bg-background/80 backdrop-blur-sm">
             {fileExtension.toUpperCase()}
           </Chip>

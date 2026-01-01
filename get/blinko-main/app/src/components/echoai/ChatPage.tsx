@@ -1,6 +1,7 @@
 /**
  * EchoAI 对话页面组件
  * 集成侧边栏、消息历史、输入区域、Agent 选择器
+ * 基于 Mastra AI 服务
  */
 
 import { useRef, useState, useCallback, useEffect } from 'react';
@@ -12,7 +13,6 @@ import {
   DropdownTrigger, 
   DropdownMenu, 
   DropdownItem,
-  Avatar,
 } from '@heroui/react';
 import { Icon } from '@/components/Common/Iconify/icons';
 import { useEchoAIChat } from '@/hooks/useEchoAIChat';
@@ -22,7 +22,19 @@ import { ChatInputArea } from './chatInputArea/chatInputArea';
 import { AttachedFileText } from './common/chatFunctions';
 import { AgentData } from './chatMessage/chatMessage';
 import { api } from '@/lib/trpc';
-import type { KhojAgent } from './agentCard';
+
+// Agent 类型定义（从 Mastra agentManager 映射）
+interface EchoAgent {
+  id: number;
+  slug: string;
+  name: string;
+  persona?: string | null;
+  systemPrompt: string;
+  tools: string[];
+  privacy: 'public' | 'private';
+  color?: string;
+  icon?: string;
+}
 
 // ============================================
 // 类型定义
@@ -51,7 +63,7 @@ export function ChatPage({
   const [uploadedFiles, setUploadedFiles] = useState<AttachedFileText[]>([]);
   
   // Agent 列表状态
-  const [agents, setAgents] = useState<KhojAgent[]>([]);
+  const [agents, setAgents] = useState<EchoAgent[]>([]);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
   
   // 使用对话 Hook
@@ -78,13 +90,18 @@ export function ChatPage({
     clearError,
   } = useEchoAIChat(initialConversationId);
 
-  // 加载 Agent 列表
+  // 加载 Agent 列表 - 使用新的 Mastra API
   useEffect(() => {
     const loadAgents = async () => {
       setIsLoadingAgents(true);
       try {
-        const result = await api.khoj.getAgents.query();
-        setAgents(result || []);
+        const result = await api.agent.getAgents.query();
+        // 映射类型，处理 null -> undefined
+        const mappedAgents: EchoAgent[] = (result || []).map(a => ({
+          ...a,
+          persona: a.persona ?? undefined,
+        }));
+        setAgents(mappedAgents);
       } catch (err) {
         console.error('加载 Agent 列表失败:', err);
       } finally {
@@ -95,18 +112,18 @@ export function ChatPage({
   }, []);
 
   // 选择 Agent
-  const handleSelectAgent = useCallback(async (selectedAgent: KhojAgent | null) => {
+  const handleSelectAgent = useCallback(async (selectedAgent: EchoAgent | null) => {
     // 更新当前 Agent
     if (selectedAgent) {
       setAgent({
         slug: selectedAgent.slug,
         name: selectedAgent.name,
-        persona: selectedAgent.personality || '',
+        persona: selectedAgent.persona || '',
         color: selectedAgent.color || 'blue',
         icon: selectedAgent.icon || 'mdi:robot-outline',
-        privacy_level: selectedAgent.privacy_level || 'private',
+        privacy_level: selectedAgent.privacy || 'private',
         managed_by_admin: false,
-        chat_model: selectedAgent.chat_model || '',
+        chat_model: '',
         input_tools: selectedAgent.tools || [],
         output_modes: [],
       });
@@ -230,7 +247,7 @@ export function ChatPage({
                   ...agents.map(a => ({ 
                     key: a.slug, 
                     name: a.name, 
-                    description: a.personality?.slice(0, 50) || '',
+                    description: a.persona?.slice(0, 50) || '',
                     color: a.color,
                     icon: a.icon,
                     isDefault: false,

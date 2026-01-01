@@ -588,7 +588,7 @@ export const ChatInputArea = forwardRef<HTMLTextAreaElement, ChatInputProps>((pr
 
         {/* 输入区域 */}
         <div
-          className={`flex items-end gap-2 p-2 rounded-2xl bg-default-100 dark:bg-default-50 ${
+          className={`flex items-center gap-2 p-2 rounded-2xl bg-default-100 dark:bg-default-50 ${
             isDragAndDropping ? 'animate-pulse ring-2 ring-primary' : ''
           }`}
           onDragOver={handleDragOver}
@@ -609,7 +609,7 @@ export const ChatInputArea = forwardRef<HTMLTextAreaElement, ChatInputProps>((pr
             <Button
               isIconOnly
               variant="light"
-              className="text-default-400 hover:text-default-600"
+              className="text-default-400 hover:text-default-600 self-center"
               isDisabled={!props.isLoggedIn}
               onPress={handleFileButtonClick}
               ref={fileInputButtonRef}
@@ -624,7 +624,7 @@ export const ChatInputArea = forwardRef<HTMLTextAreaElement, ChatInputProps>((pr
             className="flex-1"
             classNames={{
               input: 'min-h-[40px] resize-none',
-              inputWrapper: 'bg-transparent shadow-none',
+              inputWrapper: 'bg-transparent shadow-none py-0',
             }}
             placeholder="输入 / 查看命令列表"
             minRows={1}

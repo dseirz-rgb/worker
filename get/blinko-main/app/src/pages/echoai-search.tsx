@@ -1,10 +1,10 @@
 /**
  * EchoAI 语义搜索页面
- * 从 Khoj 源码移植，提供知识库语义搜索功能
+ * 提供知识库语义搜索功能，基于 Mastra AI 服务
  */
 
 import { observer } from 'mobx-react-lite';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -126,30 +126,13 @@ const EchoAISearchPage = observer(() => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 状态
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
+  // 状态 - Mastra 服务始终可用
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 检查服务状态
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const status = await api.khoj.getStatus.query();
-        setIsAvailable(status.success);
-      } catch (err) {
-        setIsAvailable(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    checkStatus();
-  }, []);
-
-  // 执行搜索
+  // 执行搜索 - 使用 Mastra quickResearch API
   const performSearch = useCallback(async (query: string) => {
     if (!query.trim()) {
       setSearchResults(null);
@@ -160,8 +143,24 @@ const EchoAISearchPage = observer(() => {
     setError(null);
 
     try {
-      const results = await api.khoj.search.query({ query });
-      setSearchResults(results || []);
+      const result = await api.research.quickResearch.mutate({ 
+        query,
+        maxIterations: 2,
+      });
+      
+      // 将 research 结果转换为搜索结果格式
+      const results: SearchResult[] = (result.sources || []).map((source: string, index: number) => ({
+        entry: source,
+        score: result.confidence || 0.5,
+        file: `source-${index}`,
+        compiled: source,
+        additional: {
+          file: `source-${index}`,
+          source: 'research',
+        },
+      }));
+      
+      setSearchResults(results);
     } catch (err) {
       console.error('搜索失败:', err);
       setError('搜索失败，请稍后重试');
@@ -203,56 +202,16 @@ const EchoAISearchPage = observer(() => {
   // 在对话中使用搜索结果
   const handleUseInChat = useCallback(async (content: string) => {
     try {
-      // 创建新对话
-      const result = await api.khoj.createConversation.mutate({});
+      // 存储上下文到 localStorage
+      localStorage.setItem('echoai_pending_context', content);
+      localStorage.setItem('echoai_pending_message', `基于以下内容回答我的问题：\n\n${content.slice(0, 500)}...`);
       
-      if (result.conversation_id) {
-        // 存储上下文到 localStorage
-        localStorage.setItem('echoai_pending_context', content);
-        localStorage.setItem('echoai_pending_message', `基于以下内容回答我的问题：\n\n${content.slice(0, 500)}...`);
-        
-        // 跳转到对话页面
-        navigate(`/echoai?conversationId=${result.conversation_id}`);
-      }
+      // 跳转到对话页面
+      navigate('/echoai');
     } catch (error) {
       console.error('创建对话失败:', error);
     }
   }, [navigate]);
-
-  // 加载中
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Spinner size="lg" />
-      </div>
-    );
-  }
-
-  // 服务不可用
-  if (!isAvailable) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center max-w-md p-8">
-          <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-danger/10 flex items-center justify-center">
-            <Icon icon="mdi:magnify-close" className="w-12 h-12 text-danger/70" />
-          </div>
-          <h2 className="text-xl font-semibold mb-2">
-            {t('echoai-service-disconnected')}
-          </h2>
-          <p className="text-foreground/60 mb-4">
-            {t('echoai-not-connected')}
-          </p>
-          <Button
-            color="primary"
-            onPress={() => window.location.reload()}
-            startContent={<Icon icon="solar:refresh-linear" className="w-4 h-4" />}
-          >
-            {t('retry-connection')}
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full">

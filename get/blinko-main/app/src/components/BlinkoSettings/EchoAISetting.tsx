@@ -1,12 +1,11 @@
 /**
  * EchoAI 设置组件
- * 配置 EchoAI 服务器连接和功能选项
+ * 配置 EchoAI 功能选项（基于 Mastra Agent API）
  */
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-  Input, 
   Button, 
   Card, 
   CardBody, 
@@ -28,26 +27,11 @@ import {
 import { DailyReport } from '@/components/echoai';
 
 // ============================================
-// 类型定义
-// ============================================
-
-interface EchoAISettings {
-  baseUrl: string;
-  enabled: boolean;
-  defaultAgent?: string;
-  defaultMode?: 'normal' | 'research';
-  voiceInputEnabled?: boolean;
-  ttsEnabled?: boolean;
-  ttsSpeed?: number;
-}
-
-// ============================================
 // 组件
 // ============================================
 
 export function EchoAISetting() {
   const { t } = useTranslation();
-  const [url, setUrl] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [defaultMode, setDefaultMode] = useState<'normal' | 'research'>('normal');
   const [voiceInputEnabled, setVoiceInputEnabled] = useState(true);
@@ -57,15 +41,13 @@ export function EchoAISetting() {
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [saved, setSaved] = useState(false);
   const [serviceInfo, setServiceInfo] = useState<{
-    version?: string;
+    agentCount?: number;
     status?: string;
-    indexedFiles?: number;
   } | null>(null);
 
   // 加载配置
   useEffect(() => {
     const config = getEchoAIConfig();
-    setUrl(config.baseUrl);
     setEnabled(config.enabled);
     // 加载扩展配置
     const extConfig = localStorage.getItem('echoai_ext_config');
@@ -84,22 +66,18 @@ export function EchoAISetting() {
 
   // 获取服务信息
   useEffect(() => {
-    if (enabled && url) {
+    if (enabled) {
       fetchServiceInfo();
     }
-  }, [enabled, url]);
+  }, [enabled]);
 
   const fetchServiceInfo = async () => {
     try {
-      const response = await fetch(`${url}/api/health`);
-      if (response.ok) {
-        const data = await response.json();
-        setServiceInfo({
-          version: data.version || '未知',
-          status: '运行中',
-          indexedFiles: data.indexed_files,
-        });
-      }
+      const agents = await api.agent.getAgents.query();
+      setServiceInfo({
+        agentCount: agents.length,
+        status: '运行中',
+      });
     } catch {
       setServiceInfo({ status: '离线' });
     }
@@ -107,7 +85,7 @@ export function EchoAISetting() {
 
   // 保存配置
   const handleSave = () => {
-    saveEchoAIConfig({ baseUrl: url, enabled });
+    saveEchoAIConfig({ enabled });
     // 保存扩展配置
     localStorage.setItem('echoai_ext_config', JSON.stringify({
       defaultMode,
@@ -120,19 +98,23 @@ export function EchoAISetting() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  // 测试连接
+  // 测试连接 - 使用 Mastra Agent API
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
     
     try {
-      const result = await api.khoj.testConnection.mutate({ baseUrl: url });
-      setTestResult(result.success ? 'success' : 'error');
-      if (result.success) {
-        fetchServiceInfo();
+      const agents = await api.agent.getAgents.query();
+      setTestResult(agents ? 'success' : 'error');
+      if (agents) {
+        setServiceInfo({
+          agentCount: agents.length,
+          status: '运行中',
+        });
       }
     } catch {
       setTestResult('error');
+      setServiceInfo({ status: '离线' });
     }
     setTesting(false);
   };
@@ -142,7 +124,6 @@ export function EchoAISetting() {
     resetEchoAIConfig();
     localStorage.removeItem('echoai_ext_config');
     const config = getEchoAIConfig();
-    setUrl(config.baseUrl);
     setEnabled(config.enabled);
     setDefaultMode('normal');
     setVoiceInputEnabled(true);
@@ -181,23 +162,6 @@ export function EchoAISetting() {
 
         <Divider />
 
-        {/* 服务器地址 */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">{t('api-endpoint')}</label>
-          <div className="flex gap-2">
-            <Input
-              value={url}
-              onValueChange={setUrl}
-              placeholder="http://localhost:42110"
-              className="flex-1"
-              startContent={
-                <Icon icon="mdi:server-network" className="text-default-400" />
-              }
-              description="EchoAI URL"
-            />
-          </div>
-        </div>
-
         {/* 服务状态信息 */}
         {serviceInfo && (
           <div className="bg-default-100 rounded-lg p-3 space-y-2">
@@ -211,16 +175,10 @@ export function EchoAISetting() {
                 {serviceInfo.status}
               </Chip>
             </div>
-            {serviceInfo.version && (
+            {serviceInfo.agentCount !== undefined && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-default-600">版本</span>
-                <span className="text-sm">{serviceInfo.version}</span>
-              </div>
-            )}
-            {serviceInfo.indexedFiles !== undefined && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-default-600">已索引文件</span>
-                <span className="text-sm">{serviceInfo.indexedFiles} 个</span>
+                <span className="text-sm text-default-600">可用 Agent</span>
+                <span className="text-sm">{serviceInfo.agentCount} 个</span>
               </div>
             )}
           </div>
@@ -352,23 +310,12 @@ export function EchoAISetting() {
         <div className="bg-default-100 rounded-lg p-4 space-y-2">
           <p className="text-sm font-medium flex items-center gap-2">
             <Icon icon="mdi:information-outline" className="w-4 h-4 text-primary" />
-            {t('how-to-start-echoai')}
+            关于 EchoAI
           </p>
-          <div className="bg-default-200 rounded-lg p-3 font-mono text-xs overflow-x-auto">
-            <code>docker-compose -f docker-compose.dev.yml up -d khoj</code>
-          </div>
           <p className="text-xs text-default-500">
-            {t('or')}: <code className="bg-default-200 px-1 rounded">./dev.sh docker</code>
+            EchoAI 使用内置的 Mastra Agent API，无需额外配置外部服务。
+            点击"测试连接"检查 Agent 服务状态。
           </p>
-          <a 
-            href="https://docs.khoj.dev" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-xs text-primary hover:underline flex items-center gap-1"
-          >
-            <Icon icon="mdi:open-in-new" className="w-3 h-3" />
-            {t('documentation')}
-          </a>
         </div>
 
         <Divider />

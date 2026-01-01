@@ -1,6 +1,6 @@
 /**
  * EchoAI 组件导出
- * 从 Khoj 源码移植的前端组件
+ * 基于 Mastra AI 服务的前端组件
  */
 
 // 公共工具
@@ -42,14 +42,19 @@ export {
   isValidCron,
 } from './automationCard';
 export type {
-  KhojAutomation,
+  KhojAutomation as EchoAutomation,  // 别名，保持兼容
   AutomationFormData,
   CronPresetOption,
 } from './automationCard';
 
 // Agent 卡片和表单
 export { AgentCard, AgentForm } from './agentCard';
-export type { AgentCardProps, KhojAgent, AgentFormProps, AgentFormData } from './agentCard';
+export type { 
+  AgentCardProps, 
+  KhojAgent as EchoAgent,  // 别名，保持兼容
+  AgentFormProps, 
+  AgentFormData 
+} from './agentCard';
 
 // 日报组件
 export { DailyReport } from './DailyReport';
@@ -64,10 +69,14 @@ export {
   stepTwoSuggestion,
   getStepTwoSuggestions,
   convertSuggestionTitleToIconClass,
+  // Echo v3.2: 智能建议系统
+  SuggestionList,
+  SuggestionResponseCard,
 } from './suggestions';
 export type {
   StepOneSuggestion,
   StepTwoSuggestion,
+  Suggestion,
 } from './suggestions';
 
 // 引用面板

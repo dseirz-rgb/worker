@@ -1,15 +1,15 @@
 # Echo 开发环境 - 统一服务编排
-# 一键启动所有服务：Blinko UI + SeekDB + Janitor + Khoj + Paperless
+# 一键启动所有服务：Blinko UI + Janitor + Paperless
 #
 # 使用方法：
 #   docker-compose -f docker-compose.dev.yml up -d
 #
 # 访问：
 #   - Blinko UI: http://localhost:1111
-#   - SeekDB API: http://localhost:8765
 #   - Janitor API: http://localhost:8766
-#   - Khoj AI: http://localhost:42110
-#   - Paperless: http://localhost:8000
+#   - Paperless: http://localhost:8000 (可选)
+#
+# 注意：Khoj AI 功能已整合到 Blinko 内部 (Mastra)，不再需要独立服务
 
 services:
   # ============================================================
@@ -33,43 +33,6 @@ services:
       interval: 5s
       timeout: 10s
       retries: 5
-    restart: unless-stopped
-    networks:
-      - echo-network
-
-  # Khoj PostgreSQL (带 pgvector)
-  khoj-postgres:
-    image: pgvector/pgvector:pg15
-    container_name: khoj-postgres
-    environment:
-      - POSTGRES_DB=khoj
-      - POSTGRES_USER=khoj
-      - POSTGRES_PASSWORD=khoj123
-    volumes:
-      - khoj_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U khoj -d khoj"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - echo-network
-
-  # SeekDB 向量数据库
-  seekdb:
-    image: oceanbase/seekdb:latest
-    container_name: echo-seekdb
-    environment:
-      - MYSQL_ROOT_PASSWORD=${SEEKDB_PASSWORD:-}
-    volumes:
-      - seekdb_data:/home/admin/oceanbase/store
-    healthcheck:
-      test: ["CMD", "mysql", "-h", "127.0.0.1", "-P", "2881", "-u", "root", "-e", "SELECT 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
     restart: unless-stopped
     networks:
       - echo-network
@@ -150,39 +113,6 @@ services:
       - echo-network
 
   # ============================================================
-  # SeekDB API 服务
-  # ============================================================
-  
-  seekdb-api:
-    build:
-      context: ./echo/sidecar
-      dockerfile: Dockerfile
-    container_name: echo-seekdb-api
-    ports:
-      - "8765:8765"
-    environment:
-      - SEEKDB_HOST=seekdb
-      - SEEKDB_PORT=2881
-      - SEEKDB_USER=root
-      - SEEKDB_PASSWORD=${SEEKDB_PASSWORD:-}
-      - SEEKDB_DATABASE=echo
-      - API_PORT=8765
-    volumes:
-      - seekdb_storage:/app/storage
-    depends_on:
-      seekdb:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - echo-network
-
-  # ============================================================
   # Janitor AI 整理服务
   # ============================================================
   
@@ -195,14 +125,10 @@ services:
       - "8766:8000"
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
-      - SEEKDB_API_URL=http://seekdb-api:8765
-      - SEEKDB_AUTO_INDEX=true
     volumes:
       - ${INBOX_PATH:-./inbox}:/data/inbox
       - janitor_logs:/app/logs
-    depends_on:
-      seekdb-api:
-        condition: service_healthy
+      - ./echo/sidecar/janitor/config:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -210,47 +136,6 @@ services:
       retries: 3
       start_period: 30s
     restart: unless-stopped
-    networks:
-      - echo-network
-
-  # ============================================================
-  # Khoj AI 助手
-  # ============================================================
-  
-  khoj:
-    image: ghcr.io/khoj-ai/khoj:latest
-    container_name: blinko-khoj
-    ports:
-      - "42110:42110"
-    environment:
-      - POSTGRES_HOST=khoj-postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=khoj
-      - POSTGRES_USER=khoj
-      - POSTGRES_PASSWORD=khoj123
-      - KHOJ_ADMIN_EMAIL=${KHOJ_ADMIN_EMAIL:-admin@echo.local}
-      - KHOJ_ADMIN_PASSWORD=${KHOJ_ADMIN_PASSWORD:-echo123}
-      - KHOJ_DJANGO_SECRET_KEY=${KHOJ_DJANGO_SECRET_KEY:-echo-khoj-secret-key}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
-      - KHOJ_ANONYMOUS_MODE=true
-    volumes:
-      - khoj_data:/root/.khoj
-      - khoj_models:/root/.cache/huggingface
-    depends_on:
-      khoj-postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:42110/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: --host="0.0.0.0" --port=42110 --non-interactive --anonymous-mode
     networks:
       - echo-network
 
@@ -263,25 +148,11 @@ volumes:
   blinko_postgres_data:
     name: echo_blinko_postgres_data
   
-  # Khoj
-  khoj_postgres_data:
-    name: echo_khoj_postgres_data
-  khoj_data:
-    name: echo_khoj_data
-  khoj_models:
-    name: echo_khoj_models
-  
-  # SeekDB
-  seekdb_data:
-    name: echo_seekdb_data
-  seekdb_storage:
-    name: echo_seekdb_storage
-  
   # Janitor
   janitor_logs:
     name: echo_janitor_logs
   
-  # Paperless
+  # Paperless (可选)
   paperless_redis:
     name: echo_paperless_redis
   paperless_pgdata:

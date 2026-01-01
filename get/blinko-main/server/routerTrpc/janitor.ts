@@ -83,10 +83,6 @@ const ollamaConfigSchema = z.object({
   model: z.string(),
 });
 
-const seekdbConfigSchema = z.object({
-  auto_index: z.boolean(),
-});
-
 const categoryConfigSchema = z.object({
   id: z.string().optional(),
   name: z.string().optional(),
@@ -102,7 +98,6 @@ const fullConfigSchema = z.object({
   output_base: z.string(),
   confidence_threshold: z.number().min(0).max(1),
   categories: z.record(z.string(), categoryConfigSchema),
-  seekdb: seekdbConfigSchema,
 });
 
 const updateConfigInput = z.object({
@@ -112,7 +107,6 @@ const updateConfigInput = z.object({
   output_base: z.string().optional(),
   confidence_threshold: z.number().min(0).max(1).optional(),
   categories: z.record(z.string(), categoryConfigSchema).optional(),
-  seekdb: seekdbConfigSchema.optional(),
 });
 
 const validatePathInput = z.object({

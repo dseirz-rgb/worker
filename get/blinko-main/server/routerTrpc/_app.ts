@@ -26,11 +26,11 @@ import { translationRouter } from './translation';
 import { domainRouter } from './domain';
 import { activityRouter } from './activity';
 import { dailyReportRouter } from './dailyReport';
+import { suggestionRouter } from './suggestion';
 import { memoryRouter } from './memory';
 import { paperlessRouter } from './paperless';
 import { janitorRouter } from './janitor';
 import { ingestRouter } from './ingest';
-import { khojRouter } from './khoj';
 import { gatewayRouter } from './gateway';
 import { researchRouter } from './research';
 import { agentRouter } from './agent';
@@ -59,11 +59,11 @@ export const appRouter = router({
   domain: domainRouter,
   activity: activityRouter,
   dailyReport: dailyReportRouter,
+  suggestion: suggestionRouter,
   memory: memoryRouter,
   paperless: paperlessRouter,
   janitor: janitorRouter,
   ingest: ingestRouter,
-  khoj: khojRouter,
   gateway: gatewayRouter,
   // AI 服务统一迁移新增路由
   research: researchRouter,

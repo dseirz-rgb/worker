@@ -51,6 +51,7 @@ const FilesPage = lazy(() => import('./pages/files'));
 const KhojPage = lazy(() => import('./pages/echoai'));
 const EchoAIHomePage = lazy(() => import('./pages/echoai-home'));
 const EchoAISearchPage = lazy(() => import('./pages/echoai-search'));
+const EchoAIReportPage = lazy(() => import('./pages/echoai-report'));
 const AgentsPage = lazy(() => import('./pages/agents'));
 const AutomationsPage = lazy(() => import('./pages/automations'));
 const ResearchPage = lazy(() => import('./pages/research'));
@@ -273,6 +274,7 @@ function AppRoutes() {
             <Route path="/echoai" element={<ProtectedRoute><KhojPage /></ProtectedRoute>} />
             <Route path="/echoai/home" element={<ProtectedRoute><EchoAIHomePage /></ProtectedRoute>} />
             <Route path="/echoai/search" element={<ProtectedRoute><EchoAISearchPage /></ProtectedRoute>} />
+            <Route path="/echoai/report" element={<ProtectedRoute><EchoAIReportPage /></ProtectedRoute>} />
             <Route path="/agents" element={<ProtectedRoute><AgentsPage /></ProtectedRoute>} />
             <Route path="/automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
             <Route path="/research" element={<ProtectedRoute><ResearchPage /></ProtectedRoute>} />

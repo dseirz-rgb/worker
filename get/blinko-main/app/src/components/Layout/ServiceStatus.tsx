@@ -69,10 +69,8 @@ export const ServiceStatus: React.FC = () => {
   // 服务图标
   const getServiceIcon = (name: string) => {
     switch (name) {
-      case 'seekdb': return 'mdi:database-search';
       case 'janitor': return 'mdi:broom';
       case 'khoj': return 'mdi:robot-outline';
-      case 'paperless': return 'mdi:file-document-outline';
       default: return 'mdi:server';
     }
   };

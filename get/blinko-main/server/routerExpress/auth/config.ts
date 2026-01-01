@@ -15,10 +15,23 @@ import { cache } from '@shared/lib/cache';
 // Cache TTL in milliseconds (20 seconds)
 const CACHE_TTL = 20 * 1000;
 
+// 2FA 环境变量开关，默认为 false（禁用 2FA）
+const ENABLE_2FA = process.env.ENABLE_2FA === 'true';
+
+// 环境变量控制 OAuth2 启用状态，默认为 false
+const ENABLE_OAUTH = process.env.ENABLE_OAUTH === 'true';
+
 export const configureSession = async (app: any) => {
   await initJwtStrategy();
   initLocalStrategy();
-  await initOAuthStrategies();
+  
+  // 只有当 ENABLE_OAUTH=true 时才初始化 OAuth 策略
+  if (ENABLE_OAUTH) {
+    console.log('[Auth] OAuth2 is enabled, initializing OAuth strategies...');
+    await initOAuthStrategies();
+  } else {
+    console.log('[Auth] OAuth2 is disabled. Set ENABLE_OAUTH=true to enable.');
+  }
   
   app.use(passport.initialize());
 };
@@ -79,7 +92,8 @@ async function handleOAuthCallback(accessToken: string, refreshToken: string, pr
         },
       });
 
-      if (config.twoFactorEnabled) {
+      // 只有当 ENABLE_2FA 环境变量为 true 且用户配置启用了 2FA 时才检查
+      if (ENABLE_2FA && config.twoFactorEnabled) {
         return done(null, false, { requiresTwoFactor: true, userId: realUser.id });
       }
 
@@ -130,7 +144,8 @@ const initJwtStrategy = async () => {
             },
           });
 
-          if (config.twoFactorEnabled) {
+          // 只有当 ENABLE_2FA 环境变量为 true 且用户配置启用了 2FA 时才检查
+          if (ENABLE_2FA && config.twoFactorEnabled) {
             return done(null, false, { requiresTwoFactor: true, userId: user.id });
           }
         }
@@ -187,7 +202,8 @@ const initLocalStrategy = () => {
             },
           });
 
-          if (config.twoFactorEnabled) {
+          // 只有当 ENABLE_2FA 环境变量为 true 且用户配置启用了 2FA 时才检查
+          if (ENABLE_2FA && config.twoFactorEnabled) {
             return done(null, false, { requiresTwoFactor: true, userId: user.id });
           }
 
@@ -407,6 +423,12 @@ const initOAuthStrategies = async () => {
 };
 
 export const reinitializeOAuthStrategies = async () => {
+  // 检查 OAuth 是否启用
+  if (!ENABLE_OAUTH) {
+    console.log('[Auth] OAuth2 is disabled. Skipping reinitialization.');
+    return { success: false, message: 'OAuth2 is disabled. Set ENABLE_OAUTH=true to enable.' };
+  }
+  
   try {
     // Clear existing OAuth strategies
     const config = await getGlobalConfig({ useAdmin: true });

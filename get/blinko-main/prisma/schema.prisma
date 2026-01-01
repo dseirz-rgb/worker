@@ -45,6 +45,14 @@ model accounts {
   agents        agent[]
   researchSessions researchSession[]
   featureFlags  featureFlag[]
+  // Echo v3.2: 日报系统关联
+  dailyReports  dailyReport[]
+  suggestions   suggestion[]
+  // 文档管理系统关联
+  documents     document[]
+  documentTypes documentType[]
+  correspondents correspondent[]
+  documentTags  documentTag[]
 }
 
 model attachments {
@@ -177,11 +185,12 @@ model follows {
 
 model notifications {
   id        Int      @id @default(autoincrement())
-  type      String   @db.VarChar // follow, comment, mention 等
+  type      String   @db.VarChar // follow, comment, mention, report, suggestion 等
   title     String   @db.VarChar
   content   String   @db.Text
   metadata  Json?    @db.Json
   isRead    Boolean  @default(false)
+  actionUrl String?  @db.VarChar(500) // 点击跳转的 URL
   accountId Int
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
@@ -513,4 +522,152 @@ model featureFlag {
   account     accounts? @relation(fields: [accountId], references: [id])
 
   @@unique([key, accountId])
+}
+
+// ============ Echo v3.2: 日报系统 ============
+
+// 日报模型
+model dailyReport {
+  id          Int      @id @default(autoincrement())
+  type        String   @db.VarChar(20)    // 'morning' | 'evening'
+  date        DateTime @db.Date
+  content     Json     @db.Json           // 日报内容 (任务摘要、笔记摘要、建议等)
+  generatedAt DateTime @default(now()) @db.Timestamptz(6)
+  accountId   Int
+  account     accounts @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([type, date, accountId])
+  @@index([date, accountId])
+  @@index([type, accountId])
+  @@map("daily_reports")
+}
+
+// 建议模型
+model suggestion {
+  id             Int       @id @default(autoincrement())
+  type           String    @db.VarChar(20)    // 'task' | 'reminder' | 'habit' | 'insight'
+  content        String    @db.Text
+  source         String?   @db.Text           // 建议来源说明
+  priority       String    @default("medium") @db.VarChar(10) // 'high' | 'medium' | 'low'
+  status         String    @default("pending") @db.VarChar(20) // 'pending' | 'accepted' | 'postponed' | 'rejected'
+  postponedUntil DateTime? @db.Timestamptz(6) // 推迟到的时间
+  rejectReason   String?   @db.Text           // 拒绝原因
+  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
+  respondedAt    DateTime? @db.Timestamptz(6)
+  accountId      Int
+  account        accounts  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([status, accountId])
+  @@index([priority, accountId])
+  @@index([createdAt, accountId])
+  @@map("suggestions")
+}
+
+// 日报设置模型 - 使用 userPreference 表存储，无需单独模型
+
+// ============ 文档管理系统 (Phase 2) ============
+
+// OCR 处理状态枚举
+enum OcrStatus {
+  PENDING     // 等待处理
+  PROCESSING  // 处理中
+  COMPLETED   // 处理完成
+  FAILED      // 处理失败
+  SKIPPED     // 跳过 (不需要 OCR)
+}
+
+// 文档模型 - 存储文件元数据和 OCR 内容
+model document {
+  id              Int       @id @default(autoincrement())
+  title           String    @db.VarChar(500)
+  content         String?   @db.Text           // OCR 提取的文本内容
+  originalFilename String   @db.VarChar(500)   // 原始文件名
+  storagePath     String    @db.VarChar(1000)  // 存储路径 (S3 key 或本地路径)
+  archivedPath    String?   @db.VarChar(1000)  // 归档文件路径
+  mimeType        String    @db.VarChar(100)
+  fileSize        BigInt                        // 文件大小 (字节)
+  checksum        String?   @db.VarChar(64)    // SHA256 校验和，用于去重
+  
+  // OCR 状态
+  ocrStatus       OcrStatus @default(PENDING)
+  ocrError        String?   @db.Text
+  
+  // 分类关联
+  documentTypeId  Int?
+  documentType    documentType? @relation(fields: [documentTypeId], references: [id])
+  correspondentId Int?
+  correspondent   correspondent? @relation(fields: [correspondentId], references: [id])
+  tags            documentToTag[]
+  
+  // 用户关联
+  accountId       Int
+  account         accounts  @relation(fields: [accountId], references: [id])
+  
+  // 时间戳
+  documentDate    DateTime? @db.Timestamptz(6) // 文档日期 (可由用户设置)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([accountId])
+  @@index([documentTypeId])
+  @@index([correspondentId])
+  @@index([ocrStatus])
+  @@index([createdAt])
+  @@index([title])
+}
+
+// 文档类型模型
+model documentType {
+  id          Int        @id @default(autoincrement())
+  name        String     @db.VarChar(100)
+  accountId   Int
+  account     accounts   @relation(fields: [accountId], references: [id])
+  documents   document[]
+  createdAt   DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(6)
+
+  @@unique([accountId, name])
+  @@index([accountId])
+}
+
+// 通讯者/联系人模型
+model correspondent {
+  id          Int        @id @default(autoincrement())
+  name        String     @db.VarChar(200)
+  accountId   Int
+  account     accounts   @relation(fields: [accountId], references: [id])
+  documents   document[]
+  createdAt   DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(6)
+
+  @@unique([accountId, name])
+  @@index([accountId])
+}
+
+// 文档标签模型 (复用现有 tag 表)
+model documentTag {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(100)
+  color       String   @default("#3B82F6") @db.VarChar(20)
+  accountId   Int
+  account     accounts @relation(fields: [accountId], references: [id])
+  documents   documentToTag[]
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([accountId, name])
+  @@index([accountId])
+}
+
+// 文档-标签关联表
+model documentToTag {
+  id          Int         @id @default(autoincrement())
+  documentId  Int
+  document    document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tagId       Int
+  tag         documentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, tagId])
+  @@index([documentId])
+  @@index([tagId])
 }
