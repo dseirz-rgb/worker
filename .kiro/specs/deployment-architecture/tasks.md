@@ -80,63 +80,63 @@
     - 配置 Windows (x64) 构建
     - _Requirements: 6.3, 7.3_
 
-- [ ] 6. Janitor Sidecar 集成 (桌面端)
-  - [ ] 6.1 打包 Janitor 为可执行文件
+- [x] 6. Janitor Sidecar 集成 (桌面端)
+  - [x] 6.1 打包 Janitor 为可执行文件
     - 使用 PyInstaller 打包 macOS 版本
     - 使用 PyInstaller 打包 Windows 版本
     - _Requirements: 5.2_
   
-  - [ ] 6.2 配置 Tauri Sidecar
+  - [x] 6.2 配置 Tauri Sidecar
     - 更新 tauri.conf.json 添加 externalBin
     - 配置不同平台的 Sidecar 路径
     - _Requirements: 5.2, 6.4, 7.4_
   
-  - [ ] 6.3 实现 Sidecar 生命周期管理
+  - [x] 6.3 实现 Sidecar 生命周期管理
     - 应用启动时启动 Janitor
     - 应用退出时停止 Janitor
     - 实现状态监控
     - _Requirements: 6.5, 7.5_
 
-- [ ] 7. macOS 发布配置
-  - [ ] 7.1 配置 macOS 签名
+- [x] 7. macOS 发布配置
+  - [x] 7.1 配置 macOS 签名
     - 配置 Apple Developer 证书
     - 配置 entitlements.plist
     - _Requirements: 6.2_
   
-  - [ ] 7.2 配置 GitHub Actions 构建
+  - [x] 7.2 配置 GitHub Actions 构建
     - 创建 `.github/workflows/build-macos.yml`
     - 配置 arm64 构建
     - 配置自动发布到 GitHub Releases
     - _Requirements: 6.1, 6.3_
   
-  - [ ] 7.3 配置自动更新
+  - [x] 7.3 配置自动更新
     - 配置 Tauri Updater 插件
     - 配置更新服务器 URL
     - _Requirements: 6.6_
 
-- [ ] 8. Windows 发布配置
-  - [ ] 8.1 配置 Windows 签名 (可选)
+- [x] 8. Windows 发布配置
+  - [x] 8.1 配置 Windows 签名 (可选)
     - 配置代码签名证书
     - _Requirements: 7.2_
   
-  - [ ] 8.2 配置 GitHub Actions 构建
+  - [x] 8.2 配置 GitHub Actions 构建
     - 创建 `.github/workflows/build-windows.yml`
     - 配置 msi 和 exe 输出
     - 配置自动发布到 GitHub Releases
     - _Requirements: 7.1, 7.2_
 
-- [ ] 9. iOS TestFlight 发布配置
-  - [ ] 9.1 配置 Tauri iOS 构建
+- [x] 9. iOS TestFlight 发布配置
+  - [x] 9.1 配置 Tauri iOS 构建
     - 配置 iOS 项目设置
     - 移除 Janitor 相关代码（iOS 不需要）
     - _Requirements: 8.2_
   
-  - [ ] 9.2 配置 App Store Connect
+  - [x] 9.2 配置 App Store Connect
     - 创建 App ID
     - 配置 TestFlight
     - _Requirements: 8.1_
   
-  - [ ] 9.3 配置 GitHub Actions 构建
+  - [x] 9.3 配置 GitHub Actions 构建
     - 创建 `.github/workflows/build-ios.yml`
     - 配置自动上传到 TestFlight
     - _Requirements: 8.1, 8.4_
