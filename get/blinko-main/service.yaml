@@ -1,0 +1,56 @@
+# Cloud Run 服务配置
+# 使用 gcloud run services replace service.yaml 部署
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: blinko
+  labels:
+    cloud.googleapis.com/location: asia-east1
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        # 自动扩缩容配置
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "2"
+        # 冷启动优化
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: gcr.io/PROJECT_ID/blinko:latest
+          ports:
+            - containerPort: 1111
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: "1"
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "1111"
+            - name: TRUST_PROXY
+              value: "1"
+            - name: DISABLE_SECURE_COOKIE
+              value: "false"
+          # 从 Secret Manager 读取敏感配置
+          # 需要先创建 secrets:
+          # gcloud secrets create DATABASE_URL --data-file=-
+          # gcloud secrets create NEXTAUTH_SECRET --data-file=-
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 1111
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 1111
+            periodSeconds: 30

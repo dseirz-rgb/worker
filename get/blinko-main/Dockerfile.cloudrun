@@ -1,0 +1,73 @@
+# Cloud Run 优化版 Dockerfile
+# 基于官方 Dockerfile，针对 GCP Cloud Run 进行优化
+
+# Build Stage
+FROM oven/bun:1.2.8 AS builder
+
+WORKDIR /app
+
+# Set environment variables for faster builds
+ENV SHARP_IGNORE_GLOBAL_LIBVIPS=1
+ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true
+
+# Copy Project Files
+COPY . .
+
+# Install Dependencies and Build App
+RUN bun install --unsafe-perm
+RUN bunx prisma generate
+RUN bun run build:web
+RUN bun run build:seed
+
+# Create startup script for Cloud Run
+RUN printf '#!/bin/sh\n\
+echo "Starting Blinko on Cloud Run..."\n\
+echo "Environment: $NODE_ENV"\n\
+echo "Running database migrations..."\n\
+npx prisma migrate deploy || npx prisma db push\n\
+echo "Running seed..."\n\
+node server/seed.js\n\
+echo "Starting server on port ${PORT:-1111}..."\n\
+node server/index.js\n' > start.sh && \
+    chmod +x start.sh
+
+
+# Runtime Stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Environment Variables for Cloud Run
+ENV NODE_ENV=production
+ENV DISABLE_SECURE_COOKIE=false
+ENV TRUST_PROXY=1
+ENV PORT=1111
+ENV SHARP_IGNORE_GLOBAL_LIBVIPS=1
+
+# Install minimal runtime dependencies
+RUN apk add --no-cache openssl vips-dev
+
+# Copy Build Artifacts
+COPY --from=builder /app/dist ./server
+COPY --from=builder /app/server/lute.min.js ./server/lute.min.js
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma/client ./node_modules/.prisma/client
+COPY --from=builder /app/start.sh ./
+
+RUN chmod +x ./start.sh
+
+# Install runtime dependencies
+RUN npm install @node-rs/crc32 lightningcss sharp@0.34.1 prisma@5.21.1 && \
+    npm install -g prisma@5.21.1 && \
+    npx prisma generate && \
+    rm -rf /tmp/* /root/.npm /root/.cache
+
+# Cloud Run uses PORT environment variable
+EXPOSE 1111
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-1111}/api/health || exit 1
+
+# Start the application
+CMD ["./start.sh"]
