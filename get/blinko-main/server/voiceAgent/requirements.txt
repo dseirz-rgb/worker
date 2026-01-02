@@ -1,0 +1,16 @@
+# LiveKit Voice Agent 依赖
+
+# LiveKit Agents SDK 核心
+livekit-agents>=1.0.0
+
+# LiveKit 插件 - Google Gemini 支持
+livekit-plugins-google>=1.0.0
+
+# LiveKit 插件 - Silero VAD (语音活动检测)
+livekit-plugins-silero>=1.0.0
+
+# LiveKit 插件 - 噪声消除
+livekit-plugins-noise-cancellation>=0.2.0
+
+# 环境变量管理
+python-dotenv>=1.0.0

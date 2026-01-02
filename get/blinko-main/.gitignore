@@ -33,3 +33,10 @@ dev-dist
 .claude/settings.local.json
 target
 server/public
+.vercel
+
+# Python virtual environments
+venv/
+**/venv/
+__pycache__/
+*.pyc

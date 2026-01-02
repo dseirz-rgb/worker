@@ -57,6 +57,7 @@ const AutomationsPage = lazy(() => import('./pages/automations'));
 const ResearchPage = lazy(() => import('./pages/research'));
 const NotesPage = lazy(() => import('./pages/notes'));
 const JanitorPage = lazy(() => import('./pages/janitor'));
+const VoiceAssistantPage = lazy(() => import('./pages/voice-assistant'));
 
 const HomeRedirect = () => {
   const navigate = useNavigate();
@@ -279,6 +280,7 @@ function AppRoutes() {
             <Route path="/automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
             <Route path="/research" element={<ProtectedRoute><ResearchPage /></ProtectedRoute>} />
             <Route path="/janitor" element={<ProtectedRoute><JanitorPage /></ProtectedRoute>} />
+            <Route path="/voice-assistant" element={<ProtectedRoute><VoiceAssistantPage /></ProtectedRoute>} />
             <Route path="/role-select" element={<RoleSelectPage />} />
             <Route path="/quicknote" element={<QuickNotePage />} />
             <Route path="/quickai" element={<QuickAIPage />} />

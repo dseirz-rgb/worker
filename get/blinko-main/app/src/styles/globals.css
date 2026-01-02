@@ -336,3 +336,147 @@ body {
 .group[data-focus-visible="true"] .group-data-\[focus-visible\=true\]\:ring-2 {
   --tw-ring-shadow: 0 !important;
 }
+
+
+/* ========================================
+   语音助手组件样式
+   ======================================== */
+
+/* 慢速脉冲动画 */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* 呼吸光晕效果 */
+@keyframes glow-breathe {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3),
+                0 0 40px rgba(139, 92, 246, 0.2),
+                0 0 60px rgba(99, 102, 241, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.5),
+                0 0 60px rgba(139, 92, 246, 0.3),
+                0 0 90px rgba(99, 102, 241, 0.2);
+  }
+}
+
+.voice-assistant-glow {
+  animation: glow-breathe 2s ease-in-out infinite;
+}
+
+/* 波形条动画 */
+@keyframes wave-bar {
+  0%, 100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.voice-wave-bar {
+  animation: wave-bar 0.8s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+/* 旋转渐变边框 */
+@keyframes rotate-gradient {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.voice-assistant-ring {
+  position: relative;
+}
+
+.voice-assistant-ring::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent,
+    rgba(99, 102, 241, 0.5),
+    rgba(139, 92, 246, 0.5),
+    transparent
+  );
+  animation: rotate-gradient 3s linear infinite;
+  z-index: -1;
+}
+
+/* 状态指示器颜色 */
+.voice-state-listening {
+  --voice-color: rgb(59, 130, 246);
+  --voice-glow: rgba(59, 130, 246, 0.4);
+}
+
+.voice-state-speaking {
+  --voice-color: rgb(16, 185, 129);
+  --voice-glow: rgba(16, 185, 129, 0.4);
+}
+
+.voice-state-thinking {
+  --voice-color: rgb(245, 158, 11);
+  --voice-glow: rgba(245, 158, 11, 0.4);
+}
+
+.voice-state-idle {
+  --voice-color: rgb(107, 114, 128);
+  --voice-glow: rgba(107, 114, 128, 0.2);
+}
+
+/* 浮动动画 */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.voice-assistant-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* 涟漪效果 */
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.voice-ripple {
+  position: relative;
+}
+
+.voice-ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  animation: ripple 2s ease-out infinite;
+}

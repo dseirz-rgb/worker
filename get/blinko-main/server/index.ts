@@ -40,6 +40,7 @@ import pluginRouter from './routerExpress/file/plugin';
 import rssRouter from './routerExpress/rss';
 import openaiRouter from './routerExpress/openai';
 import mcpRouter from './routerExpress/mcp';
+import livekitRouter from './routerExpress/livekit';
 // Khoj 已整合到 Mastra，移除独立后端依赖
 
 // Vite integration
@@ -200,6 +201,7 @@ async function setupApiRoutes(app: express.Application) {
   // Other API endpoints
   app.use('/api/rss', rssRouter);
   app.use('/v1', openaiRouter);
+  app.use('/api/livekit', livekitRouter);
 
   // OpenAPI documentation endpoints
   app.get('/api/openapi.json', (req, res) => {
@@ -272,9 +274,18 @@ async function bootstrap() {
     app.use(express.json({ limit: '50mb' }));
     app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+    // 优先注册不依赖数据库的路由（如 LiveKit）
+    // 这样即使数据库连接失败，这些 API 也能正常工作
+    app.use('/api/livekit', livekitRouter);
+    
+    // Health check endpoint (不依赖数据库)
+    app.get('/health', (req, res) => {
+      res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    });
+
     await configureSession(app);
 
-    // Setup API routes
+    // Setup API routes (可能依赖数据库)
     await setupApiRoutes(app);
     //@ts-ignore
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
