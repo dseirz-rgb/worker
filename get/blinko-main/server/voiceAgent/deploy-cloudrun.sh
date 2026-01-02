@@ -5,7 +5,7 @@
 set -e
 
 # 配置
-PROJECT_ID="your-gcp-project-id"  # 替换为你的 GCP 项目 ID
+PROJECT_ID="${GCP_PROJECT_ID:-gen-lang-client-0596519904}"  # ECHO 项目
 REGION="asia-east1"               # 与现有服务同区域
 SERVICE_NAME="voice-agent"
 IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"

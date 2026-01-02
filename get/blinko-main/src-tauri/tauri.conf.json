@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.echo.app",
   "build": {
-    "beforeBuildCommand": "bun run build:web",
+    "beforeBuildCommand": "",
     "beforeDevCommand": "bun run dev:frontend",
     "devUrl": "http://localhost:1111",
-    "frontendDist": "../dist"
+    "frontendDist": "../dist/public"
   },
   "app": {
     "windows": [

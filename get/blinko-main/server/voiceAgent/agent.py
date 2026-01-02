@@ -4,6 +4,9 @@ LiveKit Voice Agent - 语音助手后端服务
 使用 LiveKit Agents SDK 和 Google Gemini 实现实时语音对话。
 """
 
+import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 from livekit import agents
 from livekit.agents import AgentServer, AgentSession, Agent, room_io
@@ -16,6 +19,35 @@ load_dotenv()
 
 # 验证必需的环境变量
 validate_env()
+
+
+# ============================================
+# 健康检查 HTTP 服务器 (Cloud Run 需要)
+# ============================================
+class HealthHandler(BaseHTTPRequestHandler):
+    """简单的健康检查处理器"""
+    
+    def do_GET(self):
+        if self.path == "/" or self.path == "/health":
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"OK")
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def log_message(self, format, *args):
+        # 静默日志，避免刷屏
+        pass
+
+
+def start_health_server():
+    """启动健康检查 HTTP 服务器"""
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    print(f"Health check server listening on port {port}")
+    server.serve_forever()
 
 
 class VoiceAssistant(Agent):
@@ -87,5 +119,9 @@ async def voice_agent(ctx: agents.JobContext):
 
 
 if __name__ == "__main__":
+    # 在后台线程启动健康检查服务器 (Cloud Run 需要)
+    health_thread = threading.Thread(target=start_health_server, daemon=True)
+    health_thread.start()
+    
     # 运行 Agent 服务
     agents.cli.run_app(server)

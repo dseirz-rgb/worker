@@ -33,8 +33,32 @@ yarn-error.log*
 .turbo/
 tiktoken_cache/
 
-# Third-party source code (reference only)
+# Third-party source code (reference only, not our code)
 get/khoj-main/
+
+# Rust/Tauri build artifacts (very large)
+**/target/
+**/*.a
+**/*.rlib
+**/*.rmeta
+
+# Large binary files
+*.zip
+*.tar.gz
+
+# Vite cache (regenerated on build)
+**/.vite/
+
+# Prisma generated client (regenerated on build)
+**/.prisma/
+
+# node_modules in subprojects (should use package-lock.json to restore)
+get/blinko-main/node_modules/
+get/blinko-main/app/node_modules/
+get/blinko-main/server/node_modules/
+
+# Turbo cache
+**/.turbo/
 
 # Python
 __pycache__/

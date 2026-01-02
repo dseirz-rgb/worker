@@ -43,6 +43,7 @@
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
     "dotenv": "^16.5.0",
+    "livekit-server-sdk": "^2.15.0",
     "lru-cache": "^11.1.0",
     "mammoth": "^1.11.0",
     "react-i18next": "^15.4.1",

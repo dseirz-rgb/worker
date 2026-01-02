@@ -81,20 +81,43 @@ python agent.py connect --room my-room
 
 ## 生产部署 (Google Cloud Run)
 
-### 部署步骤
+### 当前部署信息
+
+- **Service URL**: https://voice-agent-673807213796.asia-east1.run.app
+- **GCP Project**: gen-lang-client-0596519904
+- **Region**: asia-east1
+- **部署时间**: 2026-01-03
+
+### 部署命令
 
 ```bash
-# 1. 设置环境变量
-export LIVEKIT_URL="wss://your-project.livekit.cloud"
-export LIVEKIT_API_KEY="your-api-key"
-export LIVEKIT_API_SECRET="your-api-secret"
-export GOOGLE_API_KEY="your-google-api-key"
+# 1. 构建并推送镜像
+cd server/voiceAgent
+gcloud builds submit --tag gcr.io/gen-lang-client-0596519904/voice-agent .
 
-# 2. 编辑部署脚本，填入 GCP 项目 ID
-vim deploy-cloudrun.sh
+# 2. 部署到 Cloud Run
+gcloud run deploy voice-agent \
+  --image gcr.io/gen-lang-client-0596519904/voice-agent \
+  --platform managed \
+  --region asia-east1 \
+  --allow-unauthenticated \
+  --min-instances 0 \
+  --max-instances 1 \
+  --memory 512Mi \
+  --cpu 1 \
+  --timeout 300 \
+  --set-env-vars "LIVEKIT_URL=xxx,LIVEKIT_API_KEY=xxx,LIVEKIT_API_SECRET=xxx,GOOGLE_API_KEY=xxx"
+```
 
-# 3. 执行部署
-./deploy-cloudrun.sh
+### 工作原理
+
+Voice Agent 是一个 **WebSocket 客户端**，主动连接到 LiveKit Cloud。
+Cloud Run 需要 HTTP 端口监听才能保持容器运行，所以 agent.py 中包含一个简单的健康检查 HTTP 服务器。
+
+```
+Cloud Run Container:
+├── HTTP Health Server (port 8080) ← Cloud Run 健康检查
+└── LiveKit Agent (WebSocket client) → 连接到 LiveKit Cloud
 ```
 
 ### 费用说明

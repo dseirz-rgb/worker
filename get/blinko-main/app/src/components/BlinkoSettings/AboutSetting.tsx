@@ -10,8 +10,14 @@ import { useTranslation } from "react-i18next";
 import { Item } from "./Item";
 import { useEffect, useState } from "react";
 import { CollapsibleCard } from "@/components/Common/CollapsibleCard";
-import packageJson from '../../../src-tauri/tauri.conf.json';
 import { isDesktop, isInTauri } from "@/lib/tauriHelper";
+
+// 动态获取客户端版本，Web 环境下使用占位符
+const getClientVersion = () => {
+  // 在 Tauri 环境中，版本会通过 API 获取
+  // 在 Web 环境中，显示 "web" 作为版本标识
+  return "web";
+};
 import { ToastPlugin } from "@/store/module/Toast/Toast";
 import { UpdateProgressDialog } from "@/components/Common/UpdateProgressDialog";
 
@@ -128,11 +134,11 @@ export const AboutSetting = observer(() => {
                   className="text-xs"
                   startContent={<Icon icon="mingcute:version-fill" width="16" height="16" />}
                 >
-                  {t('client')}: v{packageJson.version}
+                  {t('client')}: v{getClientVersion()}
                 </Chip>
               }
 
-              {store.latestClientVersion.value != '' && store.latestClientVersion.value != packageJson.version && (
+              {isInTauri() && store.latestClientVersion.value != '' && store.latestClientVersion.value != getClientVersion() && (
                 <Chip
                   classNames={{
                     base: "bg-gradient-to-br from-indigo-500 to-pink-500 border-small border-white/50 shadow-pink-500/30",

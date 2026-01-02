@@ -1,0 +1,10 @@
+# 排除虚拟环境和缓存
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+*.md
+.env
+.env.*
