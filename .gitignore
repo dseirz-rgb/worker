@@ -8,7 +8,11 @@ node_modules/
 .env.*.local
 
 # MCP settings (contains API keys)
-.kiro/settings/mcp.json
+**/mcp.json
+!**/mcp.json.example
+
+# Jupyter notebooks (may contain API keys)
+*.ipynb
 
 # Build outputs
 dist/
