@@ -6,16 +6,16 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/api/trpc/:path*",
+      "destination": "https://blinko-673807213796.asia-east1.run.app/api/trpc/:path*"
+    },
+    {
       "source": "/api/:path*",
-      "destination": "https://YOUR_CLOUD_RUN_URL/api/:path*"
+      "destination": "https://blinko-673807213796.asia-east1.run.app/api/:path*"
     },
     {
       "source": "/trpc/:path*",
-      "destination": "https://YOUR_CLOUD_RUN_URL/trpc/:path*"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "https://blinko-673807213796.asia-east1.run.app/trpc/:path*"
     }
   ],
   "headers": [
