@@ -99,6 +99,12 @@ export class BaseStore implements Store {
       group: 'tools',
     },
     {
+      title: 'voice-assistant',
+      href: '/voice-assistant',
+      icon: 'mdi:microphone',
+      group: 'tools',
+    },
+    {
       title: 'settings',
       href: '/settings',
       icon: 'hugeicons:settings-01',
@@ -258,6 +264,8 @@ export class BaseStore implements Store {
         this.currentTitle = 'research';
       } else if (location.pathname == '/janitor') {
         this.currentTitle = 'janitor';
+      } else if (location.pathname == '/voice-assistant') {
+        this.currentTitle = 'voice-assistant';
       } else if (searchParams.get('path') == 'trash') {
         this.currentTitle = 'trash';
       } else if (location.pathname == '/plugin') {

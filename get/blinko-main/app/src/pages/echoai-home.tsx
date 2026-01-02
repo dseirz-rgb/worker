@@ -145,6 +145,9 @@ const EchoAIHomePage = observer(() => {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
 
+  // 斜杠命令选项 - 基于可用工具
+  const [chatOptionsData, setChatOptionsData] = useState<Record<string, string> | null>(null);
+
   // 建议状态
   const [stepOneSuggestionOptions, setStepOneSuggestionOptions] = useState<StepOneSuggestion[]>(
     stepOneSuggestions.slice(0, 3)
@@ -170,6 +173,35 @@ const EchoAIHomePage = observer(() => {
       }
     };
     loadAgents();
+  }, []);
+
+  // 加载可用工具作为斜杠命令
+  useEffect(() => {
+    const loadChatOptions = async () => {
+      try {
+        const tools = await api.agent.getAvailableTools.query();
+        // 将工具转换为斜杠命令格式
+        const options: Record<string, string> = {
+          research: '深度研究模式，获取更详细的回答',
+          summarize: '总结当前对话或笔记内容',
+          help: '显示帮助信息',
+        };
+        // 添加内置工具
+        tools.forEach((tool: { name: string; description: string }) => {
+          options[tool.name] = tool.description;
+        });
+        setChatOptionsData(options);
+      } catch (err) {
+        console.error('加载工具列表失败:', err);
+        // 使用默认选项
+        setChatOptionsData({
+          research: '深度研究模式，获取更详细的回答',
+          summarize: '总结当前对话或笔记内容',
+          help: '显示帮助信息',
+        });
+      }
+    };
+    loadChatOptions();
   }, []);
 
   // 生成问候语

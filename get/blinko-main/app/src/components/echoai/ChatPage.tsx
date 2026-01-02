@@ -22,6 +22,7 @@ import { ChatInputArea } from './chatInputArea/chatInputArea';
 import { AttachedFileText } from './common/chatFunctions';
 import { AgentData } from './chatMessage/chatMessage';
 import { api } from '@/lib/trpc';
+import { useNavigate } from 'react-router-dom';
 
 // Agent 类型定义（从 Mastra agentManager 映射）
 interface EchoAgent {
@@ -54,6 +55,7 @@ export function ChatPage({
   showSidebar = true,
 }: ChatPageProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   
   // 侧边栏状态
@@ -296,6 +298,17 @@ export function ChatPage({
 
           {/* 状态指示 */}
           <div className="flex items-center gap-2">
+            {/* 语音助手按钮 */}
+            <Button
+              isIconOnly
+              variant="light"
+              className="text-foreground/70 hover:text-primary"
+              onPress={() => navigate('/voice-assistant')}
+              title={t('voice-assistant')}
+            >
+              <Icon icon="mdi:microphone" className="w-5 h-5" />
+            </Button>
+            
             {isSending && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10">
                 <Spinner size="sm" />
