@@ -1,16 +1,21 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "bun install",
   "buildCommand": "bun run build:web",
-  "outputDirectory": "dist",
+  "outputDirectory": "dist/public",
   "framework": null,
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "${BACKEND_URL}/api/:path*"
+      "destination": "https://YOUR_CLOUD_RUN_URL/api/:path*"
     },
     {
       "source": "/trpc/:path*",
-      "destination": "${BACKEND_URL}/trpc/:path*"
+      "destination": "https://YOUR_CLOUD_RUN_URL/trpc/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
@@ -31,10 +36,5 @@
         }
       ]
     }
-  ],
-  "env": {
-    "NEXT_PUBLIC_API_URL": "@backend_url",
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key"
-  }
+  ]
 }

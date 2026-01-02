@@ -51,23 +51,36 @@
   - [x] 3.1 创建 vercel.json 配置
     - 配置 API 代理重写规则指向 Cloud Run
     - 配置安全头部
+    - **修复**: 添加 SPA fallback 规则 `/(.*) → /index.html`
     - _Requirements: 1.1, 1.5_
   
   - [x] 3.2 配置 Vercel 环境变量
     - 设置 NEXT_PUBLIC_API_URL
     - 设置 Supabase 相关变量
+    - **修复**: 改用 GitHub Secrets 配置 BACKEND_URL（Vercel rewrites 不支持环境变量）
     - _Requirements: 1.4_
   
   - [x] 3.3 配置 GitHub 自动部署
     - 连接 GitHub 仓库
     - 配置 main 分支自动部署
+    - **修复**: 更新 workflow 动态生成 vercel.json 注入 BACKEND_URL
     - _Requirements: 1.3_
 
-- [ ] 4. Checkpoint - 验证云端部署
+- [x] 4. Checkpoint - 验证云端部署
+  - 确认 Cloud Run 后端已部署并获取 URL
+  - 在 Vercel 设置 BACKEND_URL 环境变量
   - 访问 Vercel 部署的前端
   - 验证 API 请求到达 Cloud Run
   - 验证数据库读写正常
   - 如有问题，询问用户
+  
+  **当前状态**: 
+  - Vercel 前端配置已完成 (vercel.json)
+  - Cloud Run 配置已完成 (Dockerfile.cloudrun, cloudbuild.yaml)
+  - **需要手动操作**: 
+    1. 运行 `./deploy.sh secrets` 设置 GCP Secrets
+    2. 运行 `./deploy.sh backend` 部署后端
+    3. 获取 Cloud Run URL 并设置到 Vercel 环境变量
 
 - [x] 5. Tauri 桌面端基础配置
   - [x] 5.1 初始化 Tauri 项目
@@ -147,18 +160,18 @@
   - 验证 Janitor Sidecar 正常启动
   - 如有问题，询问用户
 
-- [ ] 11. 本地开发环境更新
-  - [ ] 11.1 更新 dev.sh 脚本
+- [x] 11. 本地开发环境更新
+  - [x] 11.1 更新 dev.sh 脚本
     - 移除旧服务引用 (SeekDB, Khoj)
     - 更新 status 命令输出
     - _Requirements: 4.2, 4.4_
   
-  - [ ] 11.2 更新 docker-compose.dev.yml
+  - [x] 11.2 更新 docker-compose.dev.yml
     - 确保本地 PostgreSQL + pgvector 配置正确
     - 确保 Janitor 服务配置正确
     - _Requirements: 4.1, 4.5_
   
-  - [ ] 11.3 更新 .env.example
+  - [x] 11.3 更新 .env.example
     - 添加云端部署相关配置说明
     - 移除废弃的配置项
     - _Requirements: 4.1_

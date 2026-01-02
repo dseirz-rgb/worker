@@ -44,8 +44,8 @@ ENV TRUST_PROXY=1
 ENV PORT=1111
 ENV SHARP_IGNORE_GLOBAL_LIBVIPS=1
 
-# Install minimal runtime dependencies
-RUN apk add --no-cache openssl vips-dev
+# Install build tools and runtime dependencies
+RUN apk add --no-cache openssl vips-dev python3 py3-setuptools make g++ gcc libc-dev linux-headers
 
 # Copy Build Artifacts
 COPY --from=builder /app/dist ./server
@@ -56,11 +56,18 @@ COPY --from=builder /app/start.sh ./
 
 RUN chmod +x ./start.sh
 
-# Install runtime dependencies
-RUN npm install @node-rs/crc32 lightningcss sharp@0.34.1 prisma@5.21.1 && \
+# Install ALL runtime dependencies (matching official Dockerfile)
+RUN echo "Installing runtime dependencies..." && \
+    npm install @node-rs/crc32 lightningcss sharp@0.34.1 prisma@5.21.1 && \
     npm install -g prisma@5.21.1 && \
+    npm install sqlite3@5.1.7 && \
+    npm install llamaindex @langchain/community@0.3.40 && \
+    npm install @libsql/client @libsql/core && \
+    npm install better-sqlite3 && \
     npx prisma generate && \
-    rm -rf /tmp/* /root/.npm /root/.cache
+    rm -rf /tmp/* && \
+    apk del python3 py3-setuptools make g++ gcc libc-dev linux-headers && \
+    rm -rf /var/cache/apk/* /root/.npm /root/.cache
 
 # Cloud Run uses PORT environment variable
 EXPOSE 1111

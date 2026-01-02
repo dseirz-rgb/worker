@@ -1,12 +1,13 @@
 #!/bin/bash
-# Echo 本地开发启动脚本
+# Echo 本地开发启动脚本 v4.0
 #
 # 使用方法：
-#   ./dev.sh              # 启动所有后端服务 (Docker) + Blinko 前端 (本地)
-#   ./dev.sh docker       # 仅启动所有 Docker 服务
+#   ./dev.sh              # 启动所有服务 (PostgreSQL + Janitor + Blinko)
+#   ./dev.sh docker       # 仅启动 Docker 服务 (PostgreSQL + Janitor)
 #   ./dev.sh stop         # 停止所有服务
 #   ./dev.sh logs         # 查看 Docker 服务日志
 #   ./dev.sh status       # 查看服务状态
+#   ./dev.sh janitor      # 仅启动 Janitor 服务
 
 set -e
 
@@ -33,47 +34,33 @@ check_deps() {
         exit 1
     fi
     
-    if ! command -v python3 &> /dev/null; then
-        error "请先安装 Python 3"
+    if ! command -v docker &> /dev/null; then
+        error "请先安装 Docker"
         exit 1
     fi
 }
 
-# 启动 SeekDB（仅数据库，使用 Docker）
-start_seekdb() {
-    info "启动 SeekDB 数据库..."
+# 启动 PostgreSQL (本地开发数据库)
+start_postgres() {
+    info "启动 PostgreSQL 数据库..."
     
-    # 使用统一的 docker-compose.dev.yml
-    docker-compose -f docker-compose.dev.yml up -d seekdb
+    docker-compose -f docker-compose.dev.yml up -d postgres
     
     # 等待数据库就绪
-    info "等待 SeekDB 数据库就绪 (可能需要 2 分钟)..."
-    for i in {1..120}; do
-        if docker exec echo-seekdb mysql -h 127.0.0.1 -P 2881 -u root -e "SELECT 1" > /dev/null 2>&1; then
-            success "SeekDB 数据库已就绪"
-            break
-        fi
-        sleep 1
-    done
-    
-    # 启动 SeekDB API
-    info "启动 SeekDB API..."
-    docker-compose -f docker-compose.dev.yml up -d seekdb-api
-    
-    # 等待 API 就绪
-    for i in {1..30}; do
-        if curl -s http://localhost:8765/health > /dev/null 2>&1; then
-            success "SeekDB API 已启动"
+    info "等待 PostgreSQL 就绪..."
+    for i in {1..60}; do
+        if docker exec echo-postgres pg_isready -U postgres > /dev/null 2>&1; then
+            success "PostgreSQL 已就绪"
             return 0
         fi
         sleep 1
     done
-    warn "SeekDB API 启动超时"
+    warn "PostgreSQL 启动超时"
 }
 
 # 启动 Janitor
 start_janitor() {
-    info "启动 Janitor..."
+    info "启动 Janitor 文件整理服务..."
     docker-compose -f docker-compose.dev.yml up -d janitor
     
     # 等待启动
@@ -87,67 +74,19 @@ start_janitor() {
     warn "Janitor 启动超时"
 }
 
-# 启动 Khoj AI
-start_khoj() {
-    info "启动 Khoj AI..."
-    
-    # 检查 Khoj 是否已运行
-    if curl -s http://localhost:42110/api/health > /dev/null 2>&1; then
-        success "Khoj 已在运行"
-        return 0
-    fi
-    
-    # 启动 Khoj Docker
-    docker-compose -f docker-compose.dev.yml up -d khoj-postgres khoj
-    
-    # 等待启动
-    info "等待 Khoj 启动 (首次可能需要 2-3 分钟下载模型)..."
-    for i in {1..180}; do
-        if curl -s http://localhost:42110/api/health > /dev/null 2>&1; then
-            success "Khoj 已启动"
-            return 0
-        fi
-        sleep 1
-    done
-    
-    warn "Khoj 启动超时，请检查日志: docker logs blinko-khoj"
-}
-
-# 启动 Paperless
-start_paperless() {
-    info "启动 Paperless..."
-    docker-compose -f docker-compose.dev.yml up -d paperless-broker paperless-db paperless
-    
-    # 等待启动
-    info "等待 Paperless 启动..."
-    for i in {1..60}; do
-        if curl -s http://localhost:8000 > /dev/null 2>&1; then
-            success "Paperless 已启动"
-            return 0
-        fi
-        sleep 1
-    done
-    warn "Paperless 启动超时"
-}
-
-# 停止 Khoj AI
-stop_khoj() {
-    info "停止 Khoj AI..."
-    docker-compose -f docker-compose.dev.yml stop khoj khoj-postgres 2>/dev/null || true
-}
-
 # 仅启动 Docker 服务（不启动本地 Blinko）
 docker_only() {
-    info "启动所有 Docker 服务..."
-    docker-compose -f docker-compose.dev.yml up -d
+    info "启动 Docker 服务..."
+    
+    start_postgres
+    sleep 2
+    start_janitor
     
     echo ""
-    success "所有 Docker 服务已启动！"
+    success "Docker 服务已启动！"
     echo ""
-    echo "  📚 SeekDB API:   http://localhost:8765"
+    echo "  🗄️  PostgreSQL:   localhost:5432"
     echo "  🧹 Janitor API:  http://localhost:8766"
-    echo "  🤖 Khoj AI:      http://localhost:42110"
-    echo "  📄 Paperless:    http://localhost:8000"
     echo ""
     echo "使用 './dev.sh logs' 查看日志"
     echo "使用 './dev.sh stop' 停止所有服务"
@@ -156,14 +95,16 @@ docker_only() {
 # 查看服务状态
 status() {
     echo ""
-    info "服务状态:"
+    echo "═══════════════════════════════════════════════════════"
+    echo "                Echo 服务状态 v4.0"
+    echo "═══════════════════════════════════════════════════════"
     echo ""
     
-    # SeekDB
-    if curl -s http://localhost:8765/health > /dev/null 2>&1; then
-        success "SeekDB API:   ✅ 运行中 (http://localhost:8765)"
+    # PostgreSQL
+    if docker exec echo-postgres pg_isready -U postgres > /dev/null 2>&1; then
+        success "PostgreSQL:   ✅ 运行中 (localhost:5432)"
     else
-        error "SeekDB API:   ❌ 离线"
+        error "PostgreSQL:   ❌ 离线"
     fi
     
     # Janitor
@@ -173,25 +114,27 @@ status() {
         error "Janitor API:  ❌ 离线"
     fi
     
-    # Khoj
-    if curl -s http://localhost:42110/api/health > /dev/null 2>&1; then
-        success "Khoj AI:      ✅ 运行中 (http://localhost:42110)"
-    else
-        error "Khoj AI:      ❌ 离线"
-    fi
-    
-    # Paperless
-    if curl -s http://localhost:8000 > /dev/null 2>&1; then
-        success "Paperless:    ✅ 运行中 (http://localhost:8000)"
-    else
-        error "Paperless:    ❌ 离线"
-    fi
-    
     # Blinko
     if curl -s http://localhost:1111 > /dev/null 2>&1; then
         success "Blinko UI:    ✅ 运行中 (http://localhost:1111)"
     else
-        warn "Blinko UI:    ⚠️  未运行 (需要手动启动前端)"
+        warn "Blinko UI:    ⚠️  未运行"
+    fi
+    
+    echo ""
+    echo "───────────────────────────────────────────────────────"
+    echo "云端服务 (需要部署后才可用):"
+    echo "───────────────────────────────────────────────────────"
+    
+    # 检查 Supabase 连接 (如果配置了)
+    if [ -n "$SUPABASE_URL" ]; then
+        if curl -s "$SUPABASE_URL/rest/v1/" > /dev/null 2>&1; then
+            success "Supabase:     ✅ 已连接"
+        else
+            warn "Supabase:     ⚠️  无法连接"
+        fi
+    else
+        info "Supabase:     ℹ️  未配置 (使用本地 PostgreSQL)"
     fi
     
     echo ""
@@ -209,51 +152,60 @@ start_blinko() {
     fi
     
     # 启动开发服务器
+    info "启动后端..."
     bun run dev:backend &
     echo $! > "../../$PID_DIR/blinko-backend.pid"
     
     sleep 3
     
+    info "启动前端..."
     bun run dev:frontend &
     echo $! > "../../$PID_DIR/blinko-frontend.pid"
     
     cd ../..
-    success "Blinko 已启动"
+    
+    # 等待启动
+    for i in {1..30}; do
+        if curl -s http://localhost:1111 > /dev/null 2>&1; then
+            success "Blinko 已启动"
+            return 0
+        fi
+        sleep 1
+    done
+    warn "Blinko 启动超时，请检查日志"
 }
 
 # 启动所有服务
 start() {
     check_deps
     
-    info "启动 Echo 开发环境..."
+    echo ""
+    echo "═══════════════════════════════════════════════════════"
+    echo "           启动 Echo 开发环境 v4.0"
+    echo "═══════════════════════════════════════════════════════"
     echo ""
     
-    # 启动所有后端服务
-    start_seekdb
+    # 启动后端服务
+    start_postgres
     sleep 2
     
     start_janitor
     sleep 2
     
-    start_khoj
-    sleep 2
-    
-    start_paperless
-    sleep 2
-    
     start_blinko
     
     echo ""
+    echo "═══════════════════════════════════════════════════════"
     success "所有服务已启动！"
+    echo "═══════════════════════════════════════════════════════"
     echo ""
     echo "  🌐 Blinko UI:    http://localhost:1111"
-    echo "  📚 SeekDB API:   http://localhost:8765"
+    echo "  🗄️  PostgreSQL:   localhost:5432"
     echo "  🧹 Janitor API:  http://localhost:8766"
-    echo "  🤖 Khoj AI:      http://localhost:42110"
-    echo "  📄 Paperless:    http://localhost:8000"
     echo ""
     echo "使用 './dev.sh stop' 停止所有服务"
     echo "使用 './dev.sh status' 查看服务状态"
+    echo ""
 }
 
 # 停止所有服务
@@ -278,6 +230,19 @@ stop() {
     success "所有服务已停止"
 }
 
+# 仅启动 Janitor
+janitor_only() {
+    info "启动 Janitor 服务..."
+    start_janitor
+    
+    echo ""
+    success "Janitor 已启动！"
+    echo ""
+    echo "  🧹 Janitor API:  http://localhost:8766"
+    echo "  📖 API 文档:     http://localhost:8766/docs"
+    echo ""
+}
+
 # 主入口
 case "${1:-start}" in
     start)
@@ -285,6 +250,9 @@ case "${1:-start}" in
         ;;
     docker)
         docker_only
+        ;;
+    janitor)
+        janitor_only
         ;;
     stop)
         stop
@@ -296,7 +264,17 @@ case "${1:-start}" in
         status
         ;;
     *)
-        echo "用法: $0 {start|docker|stop|logs|status}"
+        echo "Echo 本地开发脚本 v4.0"
+        echo ""
+        echo "用法: $0 {start|docker|janitor|stop|logs|status}"
+        echo ""
+        echo "命令:"
+        echo "  start   - 启动所有服务 (PostgreSQL + Janitor + Blinko)"
+        echo "  docker  - 仅启动 Docker 服务"
+        echo "  janitor - 仅启动 Janitor 服务"
+        echo "  stop    - 停止所有服务"
+        echo "  logs    - 查看 Docker 日志"
+        echo "  status  - 查看服务状态"
         exit 1
         ;;
 esac

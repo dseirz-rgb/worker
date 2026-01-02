@@ -1,25 +1,22 @@
-# Echo 开发环境 - 统一服务编排
-# 一键启动所有服务：Blinko UI + Janitor + Paperless
+# Echo 开发环境 v4.0 - 简化服务编排
+# 核心服务：PostgreSQL (pgvector) + Janitor
 #
 # 使用方法：
 #   docker-compose -f docker-compose.dev.yml up -d
 #
 # 访问：
-#   - Blinko UI: http://localhost:1111
+#   - Blinko UI: http://localhost:1111 (需单独启动 pnpm dev)
 #   - Janitor API: http://localhost:8766
-#   - Paperless: http://localhost:8000 (可选)
-#
-# 注意：Khoj AI 功能已整合到 Blinko 内部 (Mastra)，不再需要独立服务
+#   - PostgreSQL: localhost:5432
 
 services:
   # ============================================================
   # 核心数据库服务
   # ============================================================
   
-  # Blinko PostgreSQL (带 pgvector)
-  blinko-postgres:
+  postgres:
     image: pgvector/pgvector:pg15
-    container_name: blinko-postgres
+    container_name: echo-postgres
     ports:
       - "5432:5432"
     environment:
@@ -27,88 +24,13 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mysecretpassword}
     volumes:
-      - blinko_postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d blinko"]
       interval: 5s
       timeout: 10s
       retries: 5
     restart: unless-stopped
-    networks:
-      - echo-network
-
-  # ============================================================
-  # Paperless 文档管理
-  # ============================================================
-  
-  paperless-broker:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:7-alpine
-    container_name: echo-paperless-broker
-    restart: unless-stopped
-    volumes:
-      - paperless_redis:/data
-    networks:
-      - echo-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  paperless-db:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/postgres:15-alpine
-    container_name: echo-paperless-db
-    restart: unless-stopped
-    volumes:
-      - paperless_pgdata:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: paperless
-      POSTGRES_USER: paperless
-      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD:-paperless_secret}
-    networks:
-      - echo-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  paperless:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/ghcr.io/paperless-ngx/paperless-ngx:latest
-    container_name: echo-paperless
-    restart: unless-stopped
-    depends_on:
-      paperless-db:
-        condition: service_healthy
-      paperless-broker:
-        condition: service_healthy
-    ports:
-      - "8000:8000"
-    volumes:
-      - paperless_data:/usr/src/paperless/data
-      - paperless_media:/usr/src/paperless/media
-      - paperless_export:/usr/src/paperless/export
-      - paperless_consume:/usr/src/paperless/consume
-    environment:
-      PAPERLESS_REDIS: redis://paperless-broker:6379
-      PAPERLESS_DBHOST: paperless-db
-      PAPERLESS_DBNAME: paperless
-      PAPERLESS_DBUSER: paperless
-      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD:-paperless_secret}
-      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:-change-me-in-production}
-      PAPERLESS_TIME_ZONE: ${PAPERLESS_TIME_ZONE:-Asia/Shanghai}
-      PAPERLESS_OCR_LANGUAGE: ${PAPERLESS_OCR_LANGUAGE:-eng}
-      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-admin}
-      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:-admin}
-      PAPERLESS_URL: ${PAPERLESS_URL:-http://localhost:8000}
-      PAPERLESS_TASK_WORKERS: 2
-      PAPERLESS_THREADS_PER_WORKER: 1
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
     networks:
       - echo-network
 
@@ -136,6 +58,9 @@ services:
       retries: 3
       start_period: 30s
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - echo-network
 
@@ -144,27 +69,10 @@ services:
 # ============================================================
 
 volumes:
-  # Blinko
-  blinko_postgres_data:
-    name: echo_blinko_postgres_data
-  
-  # Janitor
+  postgres_data:
+    name: echo_postgres_data
   janitor_logs:
     name: echo_janitor_logs
-  
-  # Paperless (可选)
-  paperless_redis:
-    name: echo_paperless_redis
-  paperless_pgdata:
-    name: echo_paperless_pgdata
-  paperless_data:
-    name: echo_paperless_data
-  paperless_media:
-    name: echo_paperless_media
-  paperless_export:
-    name: echo_paperless_export
-  paperless_consume:
-    name: echo_paperless_consume
 
 # ============================================================
 # 网络

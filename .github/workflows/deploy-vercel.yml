@@ -1,0 +1,90 @@
+name: Deploy Frontend to Vercel
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'get/blinko-main/app/**'
+      - 'get/blinko-main/shared/**'
+      - 'get/blinko-main/package.json'
+      - 'get/blinko-main/vercel.json'
+      - '.github/workflows/deploy-vercel.yml'
+  workflow_dispatch:  # 允许手动触发
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      # 动态生成 vercel.json，注入 BACKEND_URL
+      - name: Generate vercel.json with backend URL
+        working-directory: get/blinko-main
+        run: |
+          cat <<EOF > vercel.json
+          {
+            "\$schema": "https://openapi.vercel.sh/vercel.json",
+            "installCommand": "bun install",
+            "buildCommand": "bun run build:web",
+            "outputDirectory": "dist/public",
+            "framework": null,
+            "rewrites": [
+              {
+                "source": "/api/:path*",
+                "destination": "${{ secrets.BACKEND_URL }}/api/:path*"
+              },
+              {
+                "source": "/trpc/:path*",
+                "destination": "${{ secrets.BACKEND_URL }}/trpc/:path*"
+              },
+              {
+                "source": "/(.*)",
+                "destination": "/index.html"
+              }
+            ],
+            "headers": [
+              {
+                "source": "/(.*)",
+                "headers": [
+                  { "key": "X-Frame-Options", "value": "DENY" },
+                  { "key": "X-Content-Type-Options", "value": "nosniff" },
+                  { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+                ]
+              }
+            ]
+          }
+          EOF
+          echo "Generated vercel.json:"
+          cat vercel.json
+
+      - name: Pull Vercel Environment Information
+        working-directory: get/blinko-main
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Install Dependencies
+        working-directory: get/blinko-main
+        run: bun install
+
+      - name: Build Project
+        working-directory: get/blinko-main
+        run: bun run build:web
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Deploy to Vercel (Production)
+        working-directory: get/blinko-main
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}

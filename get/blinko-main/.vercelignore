@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs (will be built on Vercel)
+dist/
+.next/
+out/
+
+# Tauri/Desktop (not needed for web)
+src-tauri/
+target/
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+__tests__/
+coverage/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Environment files (use Vercel env vars)
+.env
+.env.*
+!.env.example
+
+# Cache and temp files
+.cache/
+.turbo/
+*.log
+*.tsbuildinfo
+
+# Large files
+*.zip
+*.tar.gz
+*.dmg
+*.exe
+*.app
+
+# Prisma migrations (handled separately)
+prisma/migrations/
+
+# Other unnecessary files
+.circleci/
+.dockerignore
+Dockerfile*
+docker-compose*
