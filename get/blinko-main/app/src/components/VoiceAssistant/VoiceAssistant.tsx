@@ -15,9 +15,12 @@ import { Track } from 'livekit-client';
 import { BarVisualizer } from './BarVisualizer';
 import { clsx } from 'clsx';
 
-type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error' | 'cold-starting';
 type MicPermission = 'unknown' | 'granted' | 'denied' | 'prompt';
 type AgentState = 'idle' | 'listening' | 'speaking' | 'thinking';
+
+// 冷启动预估时间（秒）
+const COLD_START_ESTIMATE_SECONDS = 30;
 
 interface VoiceAssistantProps {
   onConnectionChange?: (state: ConnectionState) => void;
@@ -324,6 +327,24 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
   const [error, setError] = useState<Error | null>(null);
   const [micPermission, setMicPermission] = useState<MicPermission>('unknown');
   const [isCheckingPermission, setIsCheckingPermission] = useState(false);
+  const [coldStartCountdown, setColdStartCountdown] = useState(COLD_START_ESTIMATE_SECONDS);
+  
+  // 冷启动倒计时
+  useEffect(() => {
+    if (connectionState !== 'cold-starting') {
+      setColdStartCountdown(COLD_START_ESTIMATE_SECONDS);
+      return;
+    }
+    
+    const timer = setInterval(() => {
+      setColdStartCountdown(prev => {
+        if (prev <= 1) return 1; // 保持在 1，不归零
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [connectionState]);
   
   // 初始化时检查麦克风权限
   useEffect(() => {
@@ -353,9 +374,12 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
         setMicPermission('granted');
       }
       
-      setConnectionState('connecting');
+      // 先显示冷启动状态
+      setConnectionState('cold-starting');
       onConnectionChange?.('connecting');
       setError(null);
+      
+      const startTime = Date.now();
       
       const response = await fetch('/api/livekit/token', {
         method: 'POST',
@@ -373,6 +397,13 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
       if (!data.token || !data.serverUrl) {
         throw new Error('服务器返回的数据不完整');
       }
+      
+      // 如果响应很快（<3秒），说明服务已经热启动，直接连接
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 3000) {
+        setConnectionState('connecting');
+      }
+      // 否则保持 cold-starting 状态直到 LiveKit 连接成功
       
       setToken(data.token);
       setServerUrl(data.serverUrl);
@@ -476,6 +507,55 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
           }
           title="正在连接..."
           description="请稍候，正在建立语音连接"
+        />
+      </div>
+    );
+  }
+  
+  // 冷启动状态 - 显示倒计时
+  if (connectionState === 'cold-starting') {
+    return (
+      <div className={clsx('relative', className)}>
+        <InitialCard
+          icon={
+            <div className="relative">
+              {/* 外圈进度环 */}
+              <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="45"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  className="text-gray-200 dark:text-gray-700"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="45"
+                  fill="none"
+                  stroke="url(#gradient)"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(1 - coldStartCountdown / COLD_START_ESTIMATE_SECONDS) * 283} 283`}
+                  className="transition-all duration-1000"
+                />
+                <defs>
+                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#3B82F6" />
+                    <stop offset="100%" stopColor="#8B5CF6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              {/* 中心倒计时数字 */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-2xl font-bold text-blue-500">{coldStartCountdown}</span>
+              </div>
+            </div>
+          }
+          title="正在唤醒语音助手..."
+          description="服务正在启动中，首次连接可能需要 20-30 秒"
         />
       </div>
     );

@@ -68,8 +68,8 @@ python agent.py connect --room my-room
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Web Client    │────▶│  LiveKit Server │────▶│  Voice Agent    │
-│   (Browser)     │◀────│   (WebRTC)      │◀────│  (Python)       │
+│   Web Client    │────▶│  LiveKit Cloud  │────▶│  Voice Agent    │
+│   (Browser)     │◀────│   (托管服务)     │◀────│  (Cloud Run)    │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
                                                         │
                                                         ▼
@@ -78,3 +78,33 @@ python agent.py connect --room my-room
                                                 │  (LLM + TTS)    │
                                                 └─────────────────┘
 ```
+
+## 生产部署 (Google Cloud Run)
+
+### 部署步骤
+
+```bash
+# 1. 设置环境变量
+export LIVEKIT_URL="wss://your-project.livekit.cloud"
+export LIVEKIT_API_KEY="your-api-key"
+export LIVEKIT_API_SECRET="your-api-secret"
+export GOOGLE_API_KEY="your-google-api-key"
+
+# 2. 编辑部署脚本，填入 GCP 项目 ID
+vim deploy-cloudrun.sh
+
+# 3. 执行部署
+./deploy-cloudrun.sh
+```
+
+### 费用说明
+
+- **按需计费**：没有请求时不产生费用
+- **冷启动**：首次请求约 10-30 秒延迟
+- **预估费用**：低使用量 < $5/月
+
+### 注意事项
+
+- `min-instances=0` 表示按需启动，会有冷启动延迟
+- 前端已实现冷启动等待 UI（倒计时提示）
+- 如需更快响应，可设置 `min-instances=1`（会持续产生费用）
