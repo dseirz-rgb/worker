@@ -25,7 +25,7 @@ export default function Component() {
   const [isVisible, setIsVisible] = React.useState(false);
   const [user, setUser] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [endpoint, setEndpoint] = React.useState("");
+  const [endpoint, setEndpoint] = React.useState(getSavedEndpoint());
   const [canRegister, setCanRegister] = useState(false);
   const [providers, setProviders] = useState<OAuthProvider[]>([]);
   const [loadingProvider, setLoadingProvider] = useState<string>('');
@@ -56,9 +56,10 @@ export default function Component() {
   const SignIn = new PromiseState({
     function: async () => {
       try {
-        // 在 Tauri 环境中，先保存 endpoint，再重新初始化 API
-        if (isTauriEnv && endpoint) {
-          saveBlinkoEndpoint(endpoint);
+        // 在 Tauri 环境中，保存 endpoint（使用输入值或默认值），再重新初始化 API
+        if (isTauriEnv) {
+          const endpointToUse = endpoint || getSavedEndpoint();
+          saveBlinkoEndpoint(endpointToUse);
           reinitializeTrpcApi();
         }
         const res = await signIn('credentials', {
@@ -180,7 +181,7 @@ export default function Component() {
             )}
             <Input
               label={t('username')}
-              name={t('username')}
+              name="username"
               placeholder={t('enter-your-name')}
               type="text"
               variant="bordered"

@@ -6,7 +6,7 @@
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{Manager, State};
+use tauri::{Manager, State, Emitter};
 use serde::{Deserialize, Serialize};
 
 // Janitor 配置
@@ -71,52 +71,54 @@ async fn check_janitor_health(port: u16) -> bool {
 // 启动 Janitor Sidecar
 #[tauri::command]
 async fn start_janitor(state: State<'_, JanitorState>, app: tauri::AppHandle) -> Result<String, String> {
-    let mut process_guard = state.process.lock().map_err(|e| e.to_string())?;
-    
-    // 检查是否已在运行
-    if let Some(ref mut child) = *process_guard {
-        match child.try_wait() {
-            Ok(Some(_)) => {
-                // 进程已退出，清理状态
-                *process_guard = None;
-            }
-            Ok(None) => {
-                // 进程仍在运行
-                return Ok("Janitor already running".to_string());
-            }
-            Err(_) => {
-                *process_guard = None;
+    let port = {
+        let mut process_guard = state.process.lock().map_err(|e| e.to_string())?;
+        
+        // 检查是否已在运行
+        if let Some(ref mut child) = *process_guard {
+            match child.try_wait() {
+                Ok(Some(_)) => {
+                    // 进程已退出，清理状态
+                    *process_guard = None;
+                }
+                Ok(None) => {
+                    // 进程仍在运行
+                    return Ok("Janitor already running".to_string());
+                }
+                Err(_) => {
+                    *process_guard = None;
+                }
             }
         }
-    }
+        
+        // 获取 sidecar 路径
+        let sidecar_name = get_sidecar_name();
+        let sidecar_path = app
+            .path()
+            .resource_dir()
+            .map_err(|e| e.to_string())?
+            .join("binaries")
+            .join(sidecar_name);
+        
+        if !sidecar_path.exists() {
+            return Err(format!("Sidecar not found: {:?}", sidecar_path));
+        }
+        
+        let port = *state.port.lock().map_err(|e| e.to_string())?;
+        
+        // 启动 Janitor
+        let child = Command::new(&sidecar_path)
+            .args(["--port", &port.to_string(), "--host", JANITOR_HOST])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start Janitor: {}", e))?;
+        
+        *process_guard = Some(child);
+        port
+    };
     
-    // 获取 sidecar 路径
-    let sidecar_name = get_sidecar_name();
-    let sidecar_path = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?
-        .join("binaries")
-        .join(sidecar_name);
-    
-    if !sidecar_path.exists() {
-        return Err(format!("Sidecar not found: {:?}", sidecar_path));
-    }
-    
-    let port = *state.port.lock().map_err(|e| e.to_string())?;
-    
-    // 启动 Janitor
-    let child = Command::new(&sidecar_path)
-        .args(["--port", &port.to_string(), "--host", JANITOR_HOST])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to start Janitor: {}", e))?;
-    
-    *process_guard = Some(child);
-    
-    // 等待服务启动
-    drop(process_guard);
+    // 等待服务启动 (process_guard 已释放)
     tokio::time::sleep(Duration::from_secs(2)).await;
     
     // 验证健康状态
@@ -160,23 +162,25 @@ fn stop_janitor(state: State<JanitorState>) -> Result<String, String> {
 // 检查 Janitor 状态
 #[tauri::command]
 async fn janitor_status(state: State<'_, JanitorState>) -> Result<JanitorStatusResponse, String> {
-    let process_guard = state.process.lock().map_err(|e| e.to_string())?;
-    let port = *state.port.lock().map_err(|e| e.to_string())?;
-    
-    let running = if let Some(ref child) = *process_guard {
-        // 检查进程是否还在运行
-        match std::process::Command::new("kill")
-            .args(["-0", &child.id().to_string()])
-            .status()
-        {
-            Ok(status) => status.success(),
-            Err(_) => false,
-        }
-    } else {
-        false
+    let (running, port) = {
+        let process_guard = state.process.lock().map_err(|e| e.to_string())?;
+        let port = *state.port.lock().map_err(|e| e.to_string())?;
+        
+        let running = if let Some(ref child) = *process_guard {
+            // 检查进程是否还在运行
+            match std::process::Command::new("kill")
+                .args(["-0", &child.id().to_string()])
+                .status()
+            {
+                Ok(status) => status.success(),
+                Err(_) => false,
+            }
+        } else {
+            false
+        };
+        
+        (running, port)
     };
-    
-    drop(process_guard);
     
     let healthy = if running {
         check_janitor_health(port).await

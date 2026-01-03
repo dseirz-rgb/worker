@@ -1,15 +1,21 @@
 
+// 桌面端默认后端地址
+const DEFAULT_BLINKO_ENDPOINT = 'https://blinko-673807213796.asia-east1.run.app';
+
 export function getBlinkoEndpoint(path: string = ''): string {
     try {
         const blinkoEndpoint = window.localStorage.getItem('blinkoEndpoint')
         const isTauri = !!(window as any).__TAURI__;
-        if (isTauri && blinkoEndpoint) {
+        
+        if (isTauri) {
+            // Tauri 环境：优先使用保存的地址，否则使用默认地址
+            const endpoint = blinkoEndpoint?.replace(/"/g, '') || DEFAULT_BLINKO_ENDPOINT;
             try {
-                const url = new URL(path, blinkoEndpoint.replace(/"/g, ''));
+                const url = new URL(path, endpoint);
                 return url.toString();
             } catch (error) {
                 console.error(error);
-                return new URL(path, window.location.origin).toString();
+                return new URL(path, DEFAULT_BLINKO_ENDPOINT).toString();
             }
         }
 
@@ -21,9 +27,8 @@ export function getBlinkoEndpoint(path: string = ''): string {
 }
 
 export function isTauriAndEndpointUndefined(): boolean {
-    const isTauri = !!(window as any).__TAURI__;
-    const blinkoEndpoint = window.localStorage.getItem('blinkoEndpoint')
-    return isTauri && !blinkoEndpoint;
+    // 有默认值后，这个函数不再需要阻止登录
+    return false;
 }
 
 export function saveBlinkoEndpoint(endpoint: string): void {
@@ -33,5 +38,5 @@ export function saveBlinkoEndpoint(endpoint: string): void {
 }
 
 export function getSavedEndpoint(): string {
-    return window.localStorage.getItem('blinkoEndpoint') || '';
+    return window.localStorage.getItem('blinkoEndpoint') || DEFAULT_BLINKO_ENDPOINT;
 }
