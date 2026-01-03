@@ -7,6 +7,7 @@ const router = express.Router();
 const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
+const VOICE_AGENT_URL = process.env.VOICE_AGENT_URL || '';
 
 interface TokenRequest {
   identity: string;
@@ -114,6 +115,77 @@ router.post('/token', async (req, res) => {
     res.status(500).json({ 
       error: 'server_error', 
       message: 'Failed to generate token' 
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/livekit/warmup:
+ *   post:
+ *     summary: Warmup Voice Agent service
+ *     description: Triggers a health check to wake up the Voice Agent from cold start
+ *     tags:
+ *       - LiveKit
+ *     responses:
+ *       200:
+ *         description: Voice Agent is ready
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 warmupTime:
+ *                   type: number
+ *       503:
+ *         description: Voice Agent is not available
+ */
+router.post('/warmup', async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    if (!VOICE_AGENT_URL) {
+      return res.status(503).json({
+        status: 'unavailable',
+        message: 'Voice Agent URL not configured'
+      });
+    }
+    
+    // 调用 Voice Agent 的健康检查端点来唤醒服务
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60秒超时
+    
+    const response = await fetch(`${VOICE_AGENT_URL}/health`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeout);
+    
+    const warmupTime = Date.now() - startTime;
+    
+    if (response.ok) {
+      res.json({
+        status: 'ready',
+        warmupTime,
+        message: warmupTime > 5000 ? 'Cold start completed' : 'Service was already warm'
+      });
+    } else {
+      res.status(503).json({
+        status: 'error',
+        warmupTime,
+        message: 'Voice Agent health check failed'
+      });
+    }
+  } catch (error) {
+    const warmupTime = Date.now() - startTime;
+    console.error('Voice Agent warmup error:', error);
+    res.status(503).json({
+      status: 'error',
+      warmupTime,
+      message: error instanceof Error ? error.message : 'Failed to warmup Voice Agent'
     });
   }
 });

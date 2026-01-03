@@ -379,8 +379,24 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
       onConnectionChange?.('connecting');
       setError(null);
       
-      const startTime = Date.now();
+      // 1. 先预热 Voice Agent 服务（可能需要冷启动）
+      const warmupStart = Date.now();
+      try {
+        const warmupResponse = await fetch('/api/livekit/warmup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!warmupResponse.ok) {
+          console.warn('Voice Agent warmup failed, continuing anyway...');
+        }
+      } catch (warmupErr) {
+        console.warn('Voice Agent warmup error:', warmupErr);
+        // 预热失败不阻塞，继续尝试连接
+      }
+      const warmupTime = Date.now() - warmupStart;
+      console.log(`Voice Agent warmup took ${warmupTime}ms`);
       
+      // 2. 获取 LiveKit token
       const response = await fetch('/api/livekit/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -389,7 +405,7 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || '获取连接令牌失败');
+        throw new Error(errorData.error || errorData.message || '获取连接令牌失败');
       }
       
       const data = await response.json();
@@ -398,9 +414,8 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
         throw new Error('服务器返回的数据不完整');
       }
       
-      // 如果响应很快（<3秒），说明服务已经热启动，直接连接
-      const elapsed = Date.now() - startTime;
-      if (elapsed < 3000) {
+      // 如果预热很快（<3秒），说明服务已经热启动
+      if (warmupTime < 3000) {
         setConnectionState('connecting');
       }
       // 否则保持 cold-starting 状态直到 LiveKit 连接成功
