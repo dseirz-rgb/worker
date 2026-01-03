@@ -40,8 +40,8 @@ services:
   
   janitor:
     build:
-      context: ./echo/sidecar/janitor
-      dockerfile: ../../../echo/docker/Dockerfile.janitor
+      context: ./services/janitor/janitor
+      dockerfile: ../../../infra/docker/Dockerfile.janitor
     container_name: echo-janitor
     ports:
       - "8766:8000"
@@ -50,7 +50,7 @@ services:
     volumes:
       - ${INBOX_PATH:-./inbox}:/data/inbox
       - janitor_logs:/app/logs
-      - ./echo/sidecar/janitor/config:/app/config
+      - ./services/janitor/janitor/config:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s

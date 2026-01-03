@@ -1,0 +1,23 @@
+{
+  "name": "@echoai/rc-api",
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "RiskControl API - Vercel Functions",
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.89.0",
+    "jose": "6.1.0",
+    "livekit-server-sdk": "^2.15.0",
+    "resend": "^6.6.0",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.4",
+    "@vercel/node": "^5.5.16",
+    "typescript": "5.9.3"
+  }
+}

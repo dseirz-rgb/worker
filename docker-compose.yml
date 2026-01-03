@@ -14,7 +14,7 @@ services:
   # ============ PostgreSQL 主数据库 ============
   postgres:
     build:
-      context: ./echo/docker
+      context: ./infra/docker
       dockerfile: Dockerfile.postgres
     container_name: echo-postgres
     environment:
@@ -35,8 +35,8 @@ services:
   # ============ Blinko UI ============
   blinko:
     build:
-      context: ./get/blinko-main
-      dockerfile: ../../echo/docker/Dockerfile.blinko
+      context: ./packages/echo
+      dockerfile: ../../infra/docker/Dockerfile.blinko
     container_name: echo-blinko
     ports:
       - "1111:1111"
@@ -58,8 +58,8 @@ services:
   # ============ Janitor AI 整理服务 ============
   janitor:
     build:
-      context: ./echo/sidecar/janitor
-      dockerfile: ../../../echo/docker/Dockerfile.janitor
+      context: ./services/janitor/janitor
+      dockerfile: ../../../infra/docker/Dockerfile.janitor
     container_name: echo-janitor
     ports:
       - "8000:8000"

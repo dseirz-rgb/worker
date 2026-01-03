@@ -52,6 +52,14 @@
 | [frontend-design](./frontend-design/SKILL.md) | 前端设计指南 | 设计, UI, 前端 |
 | [tauri-v2-dev](./tauri-v2-dev/SKILL.md) | Tauri v2 开发指南 | Tauri, 桌面应用 |
 
+### 🔌 MCP 封装 (按需加载)
+
+| Skill | 描述 | 触发词 | 封装的 MCP |
+|-------|------|--------|-----------|
+| [web-debugging](./web-debugging/SKILL.md) | 前端调试工具集，包含 DOM 检查、console 日志、网络请求分析 | 调试, debug, 前端, console, network | chrome-devtools |
+| [desktop-automation](./desktop-automation/SKILL.md) | 桌面自动化工具，屏幕截图、窗口管理 | 桌面, 自动化, 窗口, 截图 | ui-tars |
+| [docker-services](./docker-services/SKILL.md) | Docker MCP Gateway 服务管理 | docker, 容器, gateway | MCP_DOCKER |
+
 ---
 
 ## 使用方法

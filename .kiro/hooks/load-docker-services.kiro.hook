@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "🐳 加载 Docker 服务",
+  "description": "手动触发加载 docker-services skill 并启用 MCP_DOCKER，用于管理 Docker MCP Gateway 服务",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "请执行以下操作：\n1. 运行 `openskills read docker-services` 加载 Docker 服务 skill\n2. 编辑 `.kiro/settings/mcp.json`，将 MCP_DOCKER 的 `disabled` 设置为 `false`\n3. 确认 MCP_DOCKER 已启用并可用"
+  }
+}

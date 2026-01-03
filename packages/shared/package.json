@@ -1,0 +1,39 @@
+{
+  "name": "@echoai/shared",
+  "version": "1.0.0",
+  "description": "EchoAI 共享代码库",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./context": "./context/index.ts",
+    "./auth": "./auth/index.ts",
+    "./database": "./database/index.ts",
+    "./navigation": "./navigation/index.ts",
+    "./gateway": "./gateway/index.ts",
+    "./voice": "./voice/index.ts",
+    "./rag": "./rag/index.ts",
+    "./riskcontrol/circuit-breaker": "./riskcontrol/circuit-breaker.ts",
+    "./riskcontrol/emotion-detector": "./riskcontrol/emotion-detector.ts",
+    "./riskcontrol/price-alert": "./riskcontrol/price-alert.ts",
+    "./websocket": "./websocket/index.ts",
+    "./integrations/ibkr": "./integrations/ibkr.ts",
+    "./integrations/resend": "./integrations/resend.ts",
+    "./integrations/gemini": "./integrations/gemini.ts",
+    "./integrations/tradingview": "./integrations/tradingview.ts",
+    "./tauri": "./tauri/index.ts",
+    "./echo": "./echo/index.ts",
+    "./riskcontrol": "./riskcontrol/types.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.89.0"
+  },
+  "devDependencies": {
+    "fast-check": "^3.23.2",
+    "vitest": "^2.1.9"
+  }
+}

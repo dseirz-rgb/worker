@@ -1,0 +1,43 @@
+{
+  "name": "echo-workspace",
+  "version": "1.0.0",
+  "description": "Echo AI 知识管理系统 - 整合 RiskControl 投资模块",
+  "type": "module",
+  "private": true,
+  "workspaces": [
+    "packages/echo",
+    "packages/riskcontrol",
+    "packages/shared",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:echo",
+    "dev:echo": "cd packages/echo && bun run dev",
+    "dev:riskcontrol": "echo '⚠️ RiskControl 已整合到 Echo，请使用 npm run dev:echo 访问 /investment 路由' && exit 1",
+    "build:echo": "cd packages/echo && bun run build:web",
+    "build:riskcontrol": "cd packages/riskcontrol && npm run build",
+    "test": "npm run test:echo && npm run test:riskcontrol",
+    "test:echo": "cd packages/echo && bun run test",
+    "test:riskcontrol": "cd packages/riskcontrol && npm run test",
+    "clean": "npm run clean:echo && npm run clean:riskcontrol",
+    "clean:echo": "cd packages/echo && bun run clean",
+    "clean:riskcontrol": "cd packages/riskcontrol && rm -rf node_modules dist",
+    "install:echo": "cd packages/echo && bun install",
+    "install:riskcontrol": "cd packages/riskcontrol && npm install",
+    "install:all": "npm run install:echo && npm run install:riskcontrol",
+    "check-env": "npx tsx scripts/check-env.ts",
+    "check-env:echo": "npx tsx scripts/check-env.ts --echo",
+    "check-env:rc": "npx tsx scripts/check-env.ts --rc"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@vitest/coverage-v8": "^2.1.4",
+    "fast-check": "^4.5.2",
+    "jsdom": "^27.4.0",
+    "vitest": "^2.1.4"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

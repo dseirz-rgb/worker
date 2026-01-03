@@ -16,6 +16,22 @@
 - 修改代码前，只读取要修改的文件
 - 调试时，只加载相关的错误日志和代码
 
+## MCP 按需加载
+
+### 默认启用 (常用)
+- `deepwiki`, `context7`, `github`, `git`, `fetch`
+
+### 默认禁用 (通过 skill 启用)
+- `chrome-devtools` → `openskills read web-debugging`
+- `ui-tars` → `openskills read desktop-automation`
+- `MCP_DOCKER` → `openskills read docker-services`
+- `memory`, `sequential-thinking`, `janitor` → 手动启用
+
+### 启用流程
+1. 加载对应 skill 了解工具用法
+2. 编辑 `.kiro/settings/mcp.json` 将 `disabled` 改为 `false`
+3. 使用完毕后改回 `true` 节省上下文
+
 ## 响应风格
 
 ### 简洁优先

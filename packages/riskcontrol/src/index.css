@@ -1,0 +1,169 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg-primary: oklch(0.13 0.01 260);
+  --color-bg-secondary: oklch(0.16 0.01 260);
+  --color-bg-tertiary: oklch(0.20 0.01 260);
+  --color-border: oklch(0.30 0.01 260);
+  --color-text-primary: oklch(0.95 0.01 260);
+  --color-text-secondary: oklch(0.70 0.01 260);
+  --color-text-muted: oklch(0.50 0.01 260);
+  --color-accent-green: oklch(0.72 0.19 142);
+  --color-accent-red: oklch(0.62 0.22 25);
+  --color-accent-yellow: oklch(0.80 0.18 85);
+  --color-accent-blue: oklch(0.65 0.18 250);
+  --color-accent-cyan: oklch(0.75 0.15 195);
+  --color-accent-purple: oklch(0.65 0.20 300);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #030712;
+  color: var(--color-text-primary);
+  /* 使用系统默认等宽字体，移除对外部字体的依赖 */
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Bloomberg Terminal style animations */
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.animate-pulse-green {
+  animation: pulse-green 2s ease-in-out infinite;
+}
+
+.animate-pulse-red {
+  animation: pulse-red 1.5s ease-in-out infinite;
+}
+
+/* Terminal glow effect */
+.terminal-glow {
+  text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor;
+}
+
+.card-glow {
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.card-glow-red {
+  box-shadow: 0 0 20px rgba(255, 68, 68, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Data grid styles */
+.data-cell {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* Risk alert styles */
+.risk-alert {
+  border-left: 3px solid var(--color-accent-red);
+  background: linear-gradient(90deg, rgba(255, 68, 68, 0.1) 0%, transparent 100%);
+}
+
+/* Number formatting */
+.mono-nums {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* UI Utils */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.mask-fade-sides {
+  mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+}
+
+.animate-pulse-slow {
+  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Safe area for mobile */
+.pb-safe {
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pt-safe {
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
+}
+
+/* iOS PWA Standalone Fallback */
+@supports (-webkit-touch-callout: none) {
+  @media all and (display-mode: standalone) {
+    .pt-safe {
+      /* 
+        Ensure minimum padding for iOS Standalone mode.
+        Standard status bar is ~20px, Notch is ~44px, Dynamic Island is ~54px.
+        If env() returns 0 (which happens sometimes in PWA initial load), we default to a safe 47px (Notch height).
+        We use max() to prefer env() if it's larger or correctly detected.
+      */
+      padding-top: max(47px, env(safe-area-inset-top));
+    }
+  }
+
+  .h-safe-screen {
+    height: 100vh; /* Fallback for browsers that don't support dvh */
+    height: 100dvh;
+  }
+}
+
+/* Jina Summary Card Styling */
+.jina-summary-card {
+  @apply bg-accent-cyan/10 border-l-4 border-accent-cyan p-4 rounded-r-lg mb-6;
+}
+.jina-summary-title {
+  @apply text-accent-cyan font-bold text-lg mb-3 flex items-center gap-2;
+}
+.jina-summary-list {
+  @apply list-disc pl-5 space-y-2 text-text-secondary text-sm leading-relaxed;
+}

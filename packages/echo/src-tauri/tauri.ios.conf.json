@@ -1,0 +1,18 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "Echo",
+        "fullscreen": false,
+        "focus": true,
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "iOS": {
+      "developmentTeam": "${TAURI_APPLE_DEVELOPMENT_TEAM}",
+      "minimumSystemVersion": "14.0"
+    }
+  }
+}

@@ -21,6 +21,7 @@ Usage notes:
 
 <available_skills>
 
+<!-- Global Skills -->
 <skill>
 <name>mcp-builder</name>
 <description>Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).</description>
@@ -61,6 +62,50 @@ Usage notes:
 <name>xlsx</name>
 <description>Comprehensive spreadsheet creation, editing, and analysis with support for formulas, formatting, data analysis, and visualization. Use when working with spreadsheets (.xlsx, .xlsm, .csv, .tsv, etc).</description>
 <location>global</location>
+</skill>
+
+<!-- Workspace Skills - MCP 封装 -->
+<skill>
+<name>web-debugging</name>
+<description>前端调试工具集，封装 chrome-devtools MCP。包含 DOM 检查、console 日志、网络请求分析、截图等 20+ 工具。使用前需启用 MCP。</description>
+<location>workspace</location>
+</skill>
+
+<skill>
+<name>desktop-automation</name>
+<description>桌面自动化工具，封装 ui-tars MCP。包含屏幕截图、窗口管理等功能。使用前需启用 MCP。</description>
+<location>workspace</location>
+</skill>
+
+<skill>
+<name>docker-services</name>
+<description>Docker MCP Gateway 服务管理。动态管理多个 MCP 服务器，支持服务发现、配置管理、组合工具。使用前需启用 MCP。</description>
+<location>workspace</location>
+</skill>
+
+<!-- Workspace Skills - 开发指南 -->
+<skill>
+<name>api-integration</name>
+<description>API 集成开发指南，包含 REST/GraphQL 模板、错误处理、重试策略。</description>
+<location>workspace</location>
+</skill>
+
+<skill>
+<name>gemini-integration</name>
+<description>Google Gemini API 集成指南，包含提示词工程、流式响应、多模态处理。</description>
+<location>workspace</location>
+</skill>
+
+<skill>
+<name>tauri-v2-dev</name>
+<description>Tauri v2 开发指南，包含移动端适配、IPC 通信、插件开发。</description>
+<location>workspace</location>
+</skill>
+
+<skill>
+<name>financial-data</name>
+<description>金融数据处理指南，包含 IBKR 数据导入、验证、清洗。</description>
+<location>workspace</location>
 </skill>
 
 </available_skills>

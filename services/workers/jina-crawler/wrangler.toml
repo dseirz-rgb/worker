@@ -1,0 +1,9 @@
+name = "jina-crawler"
+main = "index.js"
+compatibility_date = "2023-12-01"
+
+[vars]
+# SUPABASE_URL conflicts with secret, so we remove it from vars
+# and assume it will be provided as a secret. 
+# Alternatively, rename the secret to SUPABASE_URL_SECRET if you want to keep var.
+
