@@ -8,35 +8,35 @@
 
 ## Tasks
 
-- [ ] 1. 配置 iOS 开发环境
-  - [ ] 1.1 安装 Rust iOS targets
+- [x] 1. 配置 iOS 开发环境
+  - [x] 1.1 安装 Rust iOS targets
     - 执行 `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`
     - 验证安装成功
     - _Requirements: 1.3_
-  - [ ] 1.2 安装 CocoaPods
+  - [x] 1.2 安装 CocoaPods
     - 执行 `brew install cocoapods`
     - 验证 pod 命令可用
     - _Requirements: 1.1_
-  - [ ] 1.3 验证 Xcode 配置
+  - [x] 1.3 验证 Xcode 配置
     - 确认 Xcode 已安装并完成初始化
     - 确认 iOS SDK 可用
     - _Requirements: 1.2_
 
-- [ ] 2. 初始化 Tauri iOS 项目
-  - [ ] 2.1 执行 Tauri iOS 初始化
+- [x] 2. 初始化 Tauri iOS 项目
+  - [x] 2.1 执行 Tauri iOS 初始化
     - 在 blinko-main/app 目录执行 `npm run tauri ios init`
-    - 生成 gen/apple 目录结构
+    - 生成 gen/apple 目录结构（已生成 Blinko.xcodeproj）
     - _Requirements: 1.4_
-  - [ ] 2.2 更新 tauri.ios.conf.json 配置
-    - 修改 app 标题为 "Echo"
-    - 配置 iOS 特定设置
+  - [x] 2.2 更新 tauri.ios.conf.json 配置
+    - 修改 app 标题为 "Echo"（PRODUCT_NAME: Echo）
+    - 配置 iOS 特定设置（bundleIdPrefix: com.echo.app）
     - _Requirements: 1.1, 7.2_
-  - [ ] 2.3 配置 iOS 图标和启动画面
+  - [x] 2.3 配置 iOS 图标和启动画面
     - 生成 iOS 所需的各尺寸图标
     - 配置 LaunchScreen
     - _Requirements: 7.1_
 
-- [ ] 3. 配置免费 Apple ID 签名
+- [ ] 3. 配置免费 Apple ID 签名（需要手动操作）
   - [ ] 3.1 在 Xcode 中登录 Apple ID
     - 打开 Xcode → Preferences → Accounts
     - 添加免费 Apple ID
