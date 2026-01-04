@@ -25,12 +25,17 @@ import { InvestmentStore } from '@/store/investmentStore';
 
 // 风险状态颜色映射
 const statusColors = {
+  // 风险指标状态
   safe: { bg: 'bg-success/10', border: 'border-success/30', text: 'text-success', icon: 'mdi:check-circle' },
   caution: { bg: 'bg-warning/10', border: 'border-warning/30', text: 'text-warning', icon: 'mdi:alert' },
   warning: { bg: 'bg-warning/10', border: 'border-warning/30', text: 'text-warning', icon: 'mdi:alert' },
   danger: { bg: 'bg-danger/10', border: 'border-danger/30', text: 'text-danger', icon: 'mdi:alert-circle' },
   critical: { bg: 'bg-danger/10', border: 'border-danger/30', text: 'text-danger', icon: 'mdi:alert-octagon' },
   normal: { bg: 'bg-success/10', border: 'border-success/30', text: 'text-success', icon: 'mdi:check-circle' },
+  // 风险等级状态 (来自 store.riskLevel)
+  low: { bg: 'bg-success/10', border: 'border-success/30', text: 'text-success', icon: 'mdi:check-circle' },
+  medium: { bg: 'bg-warning/10', border: 'border-warning/30', text: 'text-warning', icon: 'mdi:alert' },
+  high: { bg: 'bg-danger/10', border: 'border-danger/30', text: 'text-danger', icon: 'mdi:alert-circle' },
 };
 
 // 风险指标卡片组件

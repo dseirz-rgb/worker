@@ -4,7 +4,7 @@
  */
 
 import { router, authProcedure } from '../middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { TRPCError } from '@trpc/server';
 import { TranslationService, SUPPORTED_LANGUAGES } from '@server/aiServer/translation';
 import { prisma } from '../prisma';

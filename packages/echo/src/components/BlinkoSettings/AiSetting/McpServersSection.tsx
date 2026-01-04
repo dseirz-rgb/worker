@@ -111,7 +111,7 @@ const McpServerDialogContent = observer(({ server, onClose }: { server?: McpServ
         label={t('description')}
         value={formData.description}
         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-        placeholder="Optional description"
+        placeholder={t('optional-description')}
         minRows={2}
       />
 
@@ -120,9 +120,9 @@ const McpServerDialogContent = observer(({ server, onClose }: { server?: McpServ
         selectedKeys={[formData.type]}
         onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
       >
-        <SelectItem key="stdio">stdio (Local Process)</SelectItem>
-        <SelectItem key="sse">SSE (Server-Sent Events)</SelectItem>
-        <SelectItem key="streamable-http">Streamable HTTP</SelectItem>
+        <SelectItem key="stdio">{t('stdio-local-process')}</SelectItem>
+        <SelectItem key="sse">{t('sse-server-sent-events')}</SelectItem>
+        <SelectItem key="streamable-http">{t('streamable-http')}</SelectItem>
       </Select>
 
       {formData.type === 'stdio' ? (
@@ -132,7 +132,7 @@ const McpServerDialogContent = observer(({ server, onClose }: { server?: McpServ
             value={formData.command}
             onChange={(e) => setFormData({ ...formData, command: e.target.value })}
             placeholder="e.g., npx"
-            description="The command to execute"
+            description={t('command-description')}
             isRequired
           />
 
@@ -141,7 +141,7 @@ const McpServerDialogContent = observer(({ server, onClose }: { server?: McpServ
             value={formData.args}
             onChange={(e) => setFormData({ ...formData, args: e.target.value })}
             placeholder="-y&#10;@modelcontextprotocol/server-filesystem&#10;/path/to/allowed/directory"
-            description="One argument per line"
+            description={t('arguments-description')}
             minRows={3}
           />
 
@@ -150,18 +150,18 @@ const McpServerDialogContent = observer(({ server, onClose }: { server?: McpServ
             value={formData.env}
             onChange={(e) => setFormData({ ...formData, env: e.target.value })}
             placeholder='{"GITHUB_TOKEN": "your-token"}'
-            description="JSON object of environment variables"
+            description={t('env-description')}
             minRows={3}
           />
         </>
       ) : (
         <>
           <Input
-            label="URL"
+            label={t('url-label')}
             value={formData.url}
             onChange={(e) => setFormData({ ...formData, url: e.target.value })}
             placeholder="https://mcp-server.example.com/sse"
-            description="The MCP server endpoint URL"
+            description={t('mcp-endpoint-description')}
             isRequired
           />
 
@@ -170,7 +170,7 @@ const McpServerDialogContent = observer(({ server, onClose }: { server?: McpServ
             value={formData.headers}
             onChange={(e) => setFormData({ ...formData, headers: e.target.value })}
             placeholder='{"Authorization": "Bearer your-token"}'
-            description="JSON object of HTTP headers"
+            description={t('headers-description')}
             minRows={3}
           />
         </>

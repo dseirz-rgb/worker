@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { router, authProcedure, publicProcedure } from "../middleware";
 import { TRPCError } from "@trpc/server";
 import { prisma } from '../prisma';

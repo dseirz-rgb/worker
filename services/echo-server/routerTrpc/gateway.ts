@@ -9,7 +9,7 @@
  */
 
 import { router, publicProcedure } from '../middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { serviceRegistry } from '../lib/serviceRegistry';
 import { healthMonitor } from '../lib/healthMonitor';
 

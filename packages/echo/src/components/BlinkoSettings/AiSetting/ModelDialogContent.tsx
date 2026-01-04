@@ -200,8 +200,8 @@ export default observer(function ModelDialogContent({ model }: ModelDialogConten
   return (
     <div className="space-y-6">
       <Select
-        label="Provider"
-        placeholder="Select provider"
+        label={t('provider-label')}
+        placeholder={t('select-provider')}
         selectedKeys={editingModel.providerId ? [String(editingModel.providerId)] : []}
         onSelectionChange={(keys) => {
           const value = Array.from(keys)[0];
@@ -230,7 +230,7 @@ export default observer(function ModelDialogContent({ model }: ModelDialogConten
 
       <Input
         label={t('model-name')}
-        placeholder="Enter display name"
+        placeholder={t('enter-display-name')}
         value={editingModel.title || ''}
         onValueChange={(value) => {
           setEditingModel(prev => ({ ...prev, title: value }));
@@ -268,8 +268,8 @@ export default observer(function ModelDialogContent({ model }: ModelDialogConten
           </Button>
         </div>
         <Autocomplete
-          label="Model"
-          placeholder="Select or enter model"
+          label={t('model-label')}
+          placeholder={t('select-or-enter-model')}
           inputValue={editingModel.modelKey || ''}
           onInputChange={(value) => {
             // Find matching template for the input value
@@ -371,7 +371,7 @@ export default observer(function ModelDialogContent({ model }: ModelDialogConten
           <div className="mt-2 p-3 bg-warning-50 border border-warning-200 rounded-lg">
             <p className="text-sm text-warning-700">
               <Icon icon="hugeicons:alert-circle" width="14" height="14" className="inline mr-2" />
-              Currently only OpenAI-compatible audio models are supported.
+              {t('audio-model-warning')}
             </p>
           </div>
         )}
@@ -382,15 +382,15 @@ export default observer(function ModelDialogContent({ model }: ModelDialogConten
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Icon icon="hugeicons:search-list-02" width="16" height="16" />
-            <p className="text-sm font-semibold text-default-600">Embedding Dimensions</p>
+            <p className="text-sm font-semibold text-default-600">{t('embedding-dimensions')}</p>
             <Tooltip content="Specify the dimensions for this embedding model. Leave 0 for auto-detection.">
               <Icon icon="proicons:info" width="14" height="14" />
             </Tooltip>
           </div>
           <Input
             type="number"
-            label="Dimensions"
-            placeholder="0 (auto-detect)"
+            label={t('dimensions-label')}
+            placeholder={t('auto-detect-placeholder')}
             value={String(editingModel.config?.embeddingDimensions || 0)}
             onChange={(e) => {
               const dimensions = parseInt(e.target.value) || 0;
@@ -402,7 +402,7 @@ export default observer(function ModelDialogContent({ model }: ModelDialogConten
                 }
               }));
             }}
-            description="Common values: 384, 512, 768, 1024, 1536, 3072. Set to 0 for auto-detection."
+            description={t('embedding-dimensions-hint')}
             classNames={{
               base: "bg-secondbackground",
               inputWrapper: "bg-secondbackground"
@@ -423,7 +423,7 @@ export default observer(function ModelDialogContent({ model }: ModelDialogConten
         </Button>
         <div className="flex gap-2">
           <Button variant="flat" onPress={() => RootStore.Get(DialogStore).close()}>
-            Cancel
+            {t('cancel')}
           </Button>
           <Button color="primary" onPress={handleSaveModel}>
             {editingModel.id ? t('update') : t('create')}

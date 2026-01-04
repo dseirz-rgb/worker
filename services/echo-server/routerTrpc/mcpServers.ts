@@ -1,5 +1,5 @@
 import { router, authProcedure, superAdminAuthMiddleware } from '@server/middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { prisma } from '@server/prisma';
 import { mcpClientManager } from '@server/aiServer/mcp';
 

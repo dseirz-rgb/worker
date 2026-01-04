@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "zod/v3"
 import { Prisma } from "@prisma/client"
 import dayjs from "@shared/lib/dayjs"
 

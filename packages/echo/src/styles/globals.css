@@ -1,5 +1,13 @@
 @import "tailwindcss";
-@config "../../tailwind.config.js";
+
+/* HeroUI plugin for Tailwind CSS v4 */
+@plugin '../css/hero.ts';
+
+/* HeroUI theme source files - path from packages/echo/src/styles/ to root node_modules */
+@source '../../../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+
+/* Custom dark mode variant configuration (HeroUI recommended setting) */
+@custom-variant dark (&:is(.dark *));
 
 .bm-burger-button {
   display: none;

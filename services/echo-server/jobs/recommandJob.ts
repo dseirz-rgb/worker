@@ -3,7 +3,7 @@ import { prisma } from "../prisma";
 import { RECOMMAND_TASK_NAME } from "@shared/lib/sharedConstant";
 import { BaseScheduleJob } from "./baseScheduleJob";
 import { attachmentsSchema, tagSchema, tagsToNoteSchema, notesSchema } from "@shared/lib/prismaZodType";
-import { z } from "zod";
+import { z } from "zod/v3";
 import axios from "axios";
 
 export const recommandListSchema = z.array(notesSchema.merge(

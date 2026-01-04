@@ -36,7 +36,7 @@ export const GlobalPromptSection = observer(() => {
   };
 
   return (
-    <CollapsibleCard icon="hugeicons:message-01" title="Global Prompt Configuration">
+    <CollapsibleCard icon="hugeicons:message-01" title={t('global-prompt-configuration')}>
       <div className="space-y-4">
         <div className="flex flex-col gap-2">
           <div className="font-medium">{t('global-prompt')}</div>
@@ -49,13 +49,13 @@ export const GlobalPromptSection = observer(() => {
           value={globalPrompt}
           onChange={(e) => handlePromptChange(e.target.value)}
           onBlur={handlePromptBlur}
-          placeholder={`You are a versatile AI assistant who can:
-1. Answer questions and explain concepts
-2. Provide suggestions and analysis
-3. Help with planning and organizing ideas
+          placeholder={t('global-prompt-placeholder', `你是一个多功能的 AI 助手，可以：
+1. 回答问题和解释概念
+2. 提供建议和分析
+3. 帮助规划和整理想法
 
-Always respond in the user's language.
-Maintain a friendly and professional conversational tone.`}
+始终使用用户的语言回复。
+保持友好和专业的对话风格。`)}
           className="w-full"
         />
       </div>

@@ -36,7 +36,7 @@ export default observer(function AiSetting() {
 
   return (
     <div className='flex flex-col gap-4'>
-      <CollapsibleCard icon="hugeicons:ai-magic" title="AI Providers & Models">
+      <CollapsibleCard icon="hugeicons:ai-magic" title={t('ai-providers-models')}>
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <Button
@@ -48,7 +48,7 @@ export default observer(function AiSetting() {
                 RootStore.Get(DialogStore).setData({
                   isOpen: true,
                   size: '2xl',
-                  title: 'Add Provider',
+                  title: t('add-provider-dialog-title'),
                   content: <ProviderDialogContent />,
                 });
               }}
@@ -76,15 +76,15 @@ export default observer(function AiSetting() {
 
       <McpServersSection />
 
-      <CollapsibleCard icon="hugeicons:api" title="MCP Integration">
+      <CollapsibleCard icon="hugeicons:api" title={t('mcp-integration')}>
         <div className="space-y-4">
           <div className="text-sm text-default-600 mb-4">
-            {t('mcp-integration-desc', 'Model Context Protocol (MCP) integration allows AI assistants to connect to Blinko and use its tools.')}
+            {t('mcp-integration-desc')}
           </div>
 
           <div className="space-y-3">
             <div>
-              <label className="text-sm font-medium text-default-700">Endpoint URL</label>
+              <label className="text-sm font-medium text-default-700">{t('endpoint-url')}</label>
               <Input
                 value={`${getBlinkoEndpoint() ?? window.location.origin}sse`}
                 readOnly
@@ -94,7 +94,7 @@ export default observer(function AiSetting() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-default-700">Authorization Token</label>
+              <label className="text-sm font-medium text-default-700">{t('authorization-token')}</label>
               <Input
                 value={user.userInfo.value?.token || ''}
                 readOnly
@@ -105,7 +105,7 @@ export default observer(function AiSetting() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-default-700 mb-2 block">MCP Client Configuration</label>
+              <label className="text-sm font-medium text-default-700 mb-2 block">{t('mcp-client-configuration')}</label>
               <div className="relative">
                 <Copy size={20} content={`{
   "mcpServers": {

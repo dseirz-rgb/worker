@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "🚀 启动 Echo Server",
+  "description": "在会话开始时自动启动 Echo 开发服务器 (端口 1111)",
+  "version": "1",
+  "when": {
+    "type": "sessionStart"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "检查 Echo 开发服务器是否在运行：\n\n1. 使用 listProcesses 查看后台进程\n2. 如果没有 echo-server 进程在运行，使用 controlBashProcess 启动它：\n   - command: `bun --env-file ../../.env index.ts 2>&1`\n   - path: `services/echo-server`\n3. 等待几秒后检查输出，确认服务器启动成功（应该看到 'server start on port http://0.0.0.0:1111'）\n4. 简短告知用户服务器状态"
+  }
+}

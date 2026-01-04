@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { router, publicProcedure } from '../middleware';
 import packageJson from '../package.json';
 import { cache } from '@shared/lib/cache';

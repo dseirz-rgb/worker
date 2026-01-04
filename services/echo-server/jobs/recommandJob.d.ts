@@ -1,5 +1,5 @@
 import { BaseScheduleJob } from "./baseScheduleJob";
-import { z } from "zod";
+import { z } from "zod/v3";
 export declare const recommandListSchema: z.ZodArray<z.ZodObject<z.objectUtil.extendShape<{
     id: z.ZodNumber;
     type: z.ZodNumber;

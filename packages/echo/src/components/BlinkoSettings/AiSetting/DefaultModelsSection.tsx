@@ -35,14 +35,14 @@ export const DefaultModelsSection = observer(() => {
   }, []);
 
   return (
-    <CollapsibleCard icon="hugeicons:settings-02" title="Default Models Configuration">
+    <CollapsibleCard icon="hugeicons:settings-02" title={t('default-models-configuration')}>
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Main Chat Model */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Icon icon="hugeicons:cpu" width="16" height="16" />
-              <label className="text-sm font-medium">Main Chat Model</label>
+              <label className="text-sm font-medium">{t('main-chat-model', '主对话模型')}</label>
             </div>
             <Select
               classNames={{
@@ -101,13 +101,13 @@ export const DefaultModelsSection = observer(() => {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Icon icon="hugeicons:database-01" width="16" height="16" />
-              <label className="text-sm font-medium">Embedding Model</label>
+              <label className="text-sm font-medium">{t('embedding-model')}</label>
             </div>
             <Select
               classNames={{
                 trigger: "h-12",
               }}
-              placeholder="Select embedding model"
+              placeholder={t('select-embedding-model', '选择嵌入模型')}
               selectedKeys={blinko.config.value?.embeddingModelId ? [String(blinko.config.value.embeddingModelId)] : []}
               renderValue={(items) => {
                 return items.map((item) => {
@@ -160,13 +160,13 @@ export const DefaultModelsSection = observer(() => {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Icon icon="hugeicons:mic-01" width="16" height="16" />
-              <label className="text-sm font-medium">Voice Model</label>
+              <label className="text-sm font-medium">{t('voice-model', '语音模型')}</label>
             </div>
             <Select
               classNames={{
                 trigger: "h-12",
               }}
-              placeholder="Select voice model"
+              placeholder={t('select-voice-model', '选择语音模型')}
               selectedKeys={blinko.config.value?.voiceModelId ? [String(blinko.config.value.voiceModelId)] : []}
               renderValue={(items) => {
                 return items.map((item) => {
@@ -219,13 +219,13 @@ export const DefaultModelsSection = observer(() => {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Icon icon="hugeicons:view" width="16" height="16" />
-              <label className="text-sm font-medium">Vision Model</label>
+              <label className="text-sm font-medium">{t('vision-model', '视觉模型')}</label>
             </div>
             <Select
               classNames={{
                 trigger: "h-12",
               }}
-              placeholder="Select vision model"
+              placeholder={t('select-vision-model', '选择视觉模型')}
               selectedKeys={blinko.config.value?.imageModelId ? [String(blinko.config.value.imageModelId)] : []}
               renderValue={(items) => {
                 return items.map((item) => {

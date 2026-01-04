@@ -1,5 +1,5 @@
 import { router, authProcedure, demoAuthMiddleware, superAdminAuthMiddleware } from '@server/middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { DBJob } from '@server/jobs/dbjob';
 import { ArchiveJob } from '@server/jobs/archivejob';
 import { UPLOAD_FILE_PATH } from '@shared/lib/pathConstant';

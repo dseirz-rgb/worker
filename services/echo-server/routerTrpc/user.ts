@@ -1,6 +1,6 @@
 import { router, publicProcedure, authProcedure, superAdminAuthMiddleware, demoAuthMiddleware } from '../middleware';
 import { TRPCError } from '@trpc/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { prisma } from '../prisma';
 import { Prisma } from '@prisma/client';
 import { accountsSchema } from '@shared/lib/prismaZodType';

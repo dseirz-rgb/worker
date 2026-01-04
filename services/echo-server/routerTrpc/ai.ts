@@ -1,5 +1,5 @@
 import { router, authProcedure } from '../middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { AiService } from '@server/aiServer';
 import { prisma } from '../prisma';
 import { TRPCError } from '@trpc/server';

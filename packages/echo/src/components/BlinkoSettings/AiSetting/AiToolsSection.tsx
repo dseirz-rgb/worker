@@ -45,7 +45,7 @@ export const AiToolsSection = observer(() => {
         rightContent={
           <Input
             size="sm"
-            label="API key"
+            label={t('api-key-label')}
             variant="bordered"
             className="w-full md:w-[300px]"
             value={tavilyApiKey}

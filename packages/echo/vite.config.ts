@@ -126,6 +126,8 @@ export default defineConfig({
       '@echoai/shared': path.resolve(__dirname, '../../packages/shared')
     }
   },
+  // 从 monorepo 根目录加载 .env 文件
+  envDir: path.resolve(__dirname, '../..'),
   build: {
     // 输出到 dist/public
     outDir: "./dist/public",

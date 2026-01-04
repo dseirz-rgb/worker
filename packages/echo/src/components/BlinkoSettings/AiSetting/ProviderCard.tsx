@@ -141,7 +141,7 @@ export default observer(function ProviderCard({ provider }: ProviderCardProps) {
                 RootStore.Get(DialogStore).setData({
                   isOpen: true,
                   size: isMobile ? 'full' : '2xl',
-                  title: 'Edit Provider',
+                  title: t('edit-provider-dialog-title'),
                   content: <ProviderDialogContent provider={provider} />,
                 });
               }}
@@ -179,7 +179,7 @@ export default observer(function ProviderCard({ provider }: ProviderCardProps) {
                   RootStore.Get(DialogStore).setData({
                     isOpen: true,
                     size: isMobile ? 'full' : '2xl',
-                    title: `Add Model to ${provider.title}`,
+                    title: t('add-model-to-provider', { provider: provider.title }),
                     content: <ModelDialogContent model={{
                       id: 0,
                       providerId: provider.id,
@@ -231,7 +231,7 @@ export default observer(function ProviderCard({ provider }: ProviderCardProps) {
                       RootStore.Get(DialogStore).setData({
                         isOpen: true,
                         size: isMobile ? 'full' : '3xl',
-                        title: `Add ${model.name} to ${provider.title}`,
+                        title: t('add-model-to-provider', { provider: provider.title }),
                         content: <ModelDialogContent model={{
                           id: 0,
                           providerId: provider.id,
@@ -303,7 +303,7 @@ export default observer(function ProviderCard({ provider }: ProviderCardProps) {
                                 RootStore.Get(DialogStore).setData({
                                   isOpen: true,
                                   size: 'full',
-                                  title: 'Edit Model',
+                                  title: t('edit-model-dialog-title'),
                                   content: <ModelDialogContent model={model} />,
                                 });
                               }}
@@ -372,7 +372,7 @@ export default observer(function ProviderCard({ provider }: ProviderCardProps) {
                               RootStore.Get(DialogStore).setData({
                                 isOpen: true,
                                 size: '3xl',
-                                title: 'Edit Model',
+                                title: t('edit-model-dialog-title'),
                                 content: <ModelDialogContent model={model} />,
                               });
                             }}

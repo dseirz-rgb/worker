@@ -1,5 +1,5 @@
 import { router, authProcedure, publicProcedure } from '../middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { prisma } from '../prisma';
 import { GlobalConfig, ZConfigKey, ZConfigSchema, ZUserPerferConfigKey } from '@shared/lib/types';
 import { configSchema } from '@shared/lib/prismaZodType';

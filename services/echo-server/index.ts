@@ -222,16 +222,16 @@ async function setupApiRoutes(app: express.Application) {
     }
   }));
 
-  // OpenAPI integration
-  app.use('/api',
-    // @ts-ignore
-    createOpenApiExpressMiddleware({
-      router: appRouter,
-      createContext: ({ req, res }: { req: express.Request; res: express.Response }) => {
-        return createContext(req, res);
-      }
-    })
-  );
+  // OpenAPI integration - 临时禁用，trpc-to-openapi 与 zod v4 不兼容
+  // 使用 /api/trpc 端点访问 tRPC API
+  // app.use('/api',
+  //   createOpenApiExpressMiddleware({
+  //     router: appRouter,
+  //     createContext: ({ req, res }: { req: express.Request; res: express.Response }) => {
+  //       return createContext(req, res);
+  //     }
+  //   })
+  // );
   
   // Health check endpoint
   app.get('/health', (req, res) => {

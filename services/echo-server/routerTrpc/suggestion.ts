@@ -4,7 +4,7 @@
  */
 
 import { authProcedure, router } from '@server/middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { createSuggestionEngine, SuggestionAction } from '../aiServer/suggestionEngine';
 
 export const suggestionRouter = router({

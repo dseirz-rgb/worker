@@ -103,13 +103,13 @@ export const EmbeddingSettingsSection = observer(function EmbeddingSettingsSecti
 
 
   return (
-    <CollapsibleCard icon="mingcute:vector-line" title="Embedding Management">
+    <CollapsibleCard icon="mingcute:vector-line" title={t('embedding-management')}>
       <div className="space-y-4">
         <Item
           type={isPc ? 'row' : 'col'}
           leftContent={
             <ItemWithTooltip
-              content={<>Top K</>}
+              content={<>{t('top-k', 'Top K')}</>}
               toolTipContent={
                 <div className="md:w-[300px] flex flex-col gap-2">
                   <div>{t('top-k-description')}</div>
@@ -152,7 +152,7 @@ export const EmbeddingSettingsSection = observer(function EmbeddingSettingsSecti
           type={isPc ? 'row' : 'col'}
           leftContent={
             <ItemWithTooltip
-              content={<>Score</>}
+              content={<>{t('score', '相似度分数')}</>}
               toolTipContent={
                 <div className="md:w-[300px] flex flex-col gap-2">
                   <div>{t('embedding-score-description')}</div>

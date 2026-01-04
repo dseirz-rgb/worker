@@ -1,5 +1,5 @@
 import { router, authProcedure } from '@server/middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { AIScheduledTaskJob } from '@server/jobs/aiScheduledTaskJob';
 
 // Schema for AI scheduled task

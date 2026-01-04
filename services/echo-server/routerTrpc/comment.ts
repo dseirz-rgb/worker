@@ -1,5 +1,5 @@
 import { router, authProcedure, publicProcedure } from '../middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { prisma } from '../prisma';
 import { commentsSchema, accountsSchema, NotificationType } from '@shared/lib/prismaZodType';
 import * as crypto from 'crypto';

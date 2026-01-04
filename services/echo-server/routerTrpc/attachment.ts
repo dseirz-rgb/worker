@@ -1,5 +1,5 @@
 import { router, authProcedure } from '../middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { prisma } from '../prisma';
 import { Prisma } from '@prisma/client';
 import path from 'path';

@@ -402,13 +402,13 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
 
               <div className="space-y-3">
                 <Input
-                  label="Supabase URL"
+                  label="Supabase 地址"
                   value={supabaseUrl}
                   onChange={(e) => setSupabaseUrl(e.target.value)}
                   placeholder="https://xxx.supabase.co"
                 />
                 <Input
-                  label="Anon Key"
+                  label="匿名密钥"
                   type="password"
                   value={supabaseKey}
                   onChange={(e) => setSupabaseKey(e.target.value)}

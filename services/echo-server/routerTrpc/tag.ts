@@ -1,5 +1,5 @@
 import { router, authProcedure, demoAuthMiddleware } from '@server/middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { prisma } from '@server/prisma';
 import { userCaller } from './_app';
 import { tagSchema } from '@shared/lib/prismaZodType';

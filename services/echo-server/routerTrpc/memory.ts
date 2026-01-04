@@ -5,7 +5,7 @@
  */
 
 import { router, authProcedure } from '../middleware';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { createMemoryManager, MemoryType } from '../aiServer/memory';
 
 // 记忆类型枚举
