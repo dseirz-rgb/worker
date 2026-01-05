@@ -248,10 +248,13 @@ export const noteRouter = router({
         },
       });
 
-      return notes.map((note) => ({
-        ...note,
-        isInternalShared: note.internalShares.length > 0,
-      }));
+      return notes.map((note) => {
+        const { internalShares, ...noteWithoutShares } = note;
+        return {
+          ...noteWithoutShares,
+          isInternalShared: internalShares.length > 0,
+        };
+      });
     }),
   publicList: publicProcedure
     .meta({

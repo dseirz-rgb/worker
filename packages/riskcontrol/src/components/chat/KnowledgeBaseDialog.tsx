@@ -1,10 +1,21 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Trash2, Loader2, BookOpen, Plus, FileSpreadsheet, Newspaper, MessageCircle, Lightbulb } from 'lucide-react';
+import { Upload, FileText, Trash2, Loader2, BookOpen, Plus, FileSpreadsheet, Newspaper, MessageCircle, Lightbulb, RefreshCw, Cloud, CloudOff, CheckCircle, AlertCircle } from 'lucide-react';
 import { getClient } from '../../services/supabaseData';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+
+// 同步状态类型
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'not_configured';
+
+interface DriveSyncStatus {
+  status: SyncStatus;
+  lastSyncAt: string | null;
+  errorMessage: string | null;
+  fileCount: number;
+  isSyncing: boolean;
+}
 
 export function KnowledgeBaseDialog({ trigger }: { trigger?: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,6 +23,8 @@ export function KnowledgeBaseDialog({ trigger }: { trigger?: React.ReactNode }) 
   const [uploadProgress, setUploadProgress] = useState('');
   const [documents, setDocuments] = useState<any[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<DriveSyncStatus | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = getClient();
 
@@ -19,8 +32,54 @@ export function KnowledgeBaseDialog({ trigger }: { trigger?: React.ReactNode }) 
   useEffect(() => {
     if (isOpen) {
       loadDocuments();
+      loadSyncStatus();
     }
   }, [isOpen]);
+
+  // 加载同步状态
+  async function loadSyncStatus() {
+    try {
+      const response = await fetch('/api/trpc/driveSync.status');
+      if (response.ok) {
+        const data = await response.json();
+        setSyncStatus(data.result?.data || null);
+      }
+    } catch (e) {
+      console.error('Failed to load sync status:', e);
+    }
+  }
+
+  // 手动触发同步
+  async function triggerSync(forceFullSync: boolean = false) {
+    setIsSyncing(true);
+    try {
+      const response = await fetch('/api/trpc/driveSync.trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forceFullSync }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.result?.data?.success) {
+          alert(`同步完成！处理了 ${data.result.data.filesProcessed} 个文件`);
+          loadDocuments();
+          loadSyncStatus();
+        } else {
+          alert('同步失败: ' + (data.result?.data?.errors?.[0]?.error || '未知错误'));
+        }
+      } else {
+        const errData = await response.json();
+        alert('同步失败: ' + (errData.error?.message || '请求失败'));
+      }
+    } catch (e) {
+      console.error('Sync failed:', e);
+      alert('同步失败: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setIsSyncing(false);
+      loadSyncStatus();
+    }
+  }
 
   async function loadDocuments() {
     if (!supabase) return;
@@ -186,6 +245,58 @@ export function KnowledgeBaseDialog({ trigger }: { trigger?: React.ReactNode }) 
           
           <TabsContent value="upload">
             <div className="grid gap-4 py-4">
+              {/* Google Drive 同步状态 */}
+              <div className="p-3 bg-bg-tertiary rounded-lg border border-border">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {syncStatus?.status === 'not_configured' ? (
+                      <CloudOff size={16} className="text-text-muted" />
+                    ) : syncStatus?.status === 'error' ? (
+                      <AlertCircle size={16} className="text-red-500" />
+                    ) : syncStatus?.status === 'syncing' || isSyncing ? (
+                      <RefreshCw size={16} className="text-accent-cyan animate-spin" />
+                    ) : (
+                      <Cloud size={16} className="text-accent-green" />
+                    )}
+                    <span className="text-sm font-medium">Google Drive 同步</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => triggerSync(false)}
+                    disabled={isSyncing || syncStatus?.status === 'not_configured'}
+                    className="h-7 text-xs"
+                  >
+                    {isSyncing ? (
+                      <>
+                        <Loader2 size={12} className="mr-1 animate-spin" />
+                        同步中...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={12} className="mr-1" />
+                        立即同步
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <div className="text-xs text-text-muted">
+                  {syncStatus?.status === 'not_configured' ? (
+                    <span>未配置 Google Drive 同步</span>
+                  ) : syncStatus?.lastSyncAt ? (
+                    <span>
+                      上次同步: {new Date(syncStatus.lastSyncAt).toLocaleString()} · 
+                      {syncStatus.fileCount} 个文件
+                    </span>
+                  ) : (
+                    <span>尚未同步</span>
+                  )}
+                  {syncStatus?.errorMessage && (
+                    <span className="text-red-400 ml-2">错误: {syncStatus.errorMessage}</span>
+                  )}
+                </div>
+              </div>
+
               {/* 上传区域 */}
               <div className="border-2 border-dashed border-border-primary rounded-lg p-8 text-center hover:bg-bg-tertiary transition-colors cursor-pointer"
                    onClick={() => fileInputRef.current?.click()}>
@@ -233,8 +344,11 @@ export function KnowledgeBaseDialog({ trigger }: { trigger?: React.ReactNode }) 
 
           <TabsContent value="strategy">
              <div className="py-2">
-                <p className="text-xs text-text-tertiary mb-2">自动同步的 Google Sheets 投资策略将显示在这里。</p>
+                <p className="text-xs text-text-tertiary mb-2">自动同步的 Google Sheets 投资策略和 Excel 财务模型将显示在这里。</p>
+                <h4 className="text-sm font-bold text-text-primary mb-2 mt-4">投资策略 (Google Sheets)</h4>
                 {renderDocList('strategy_sheet')}
+                <h4 className="text-sm font-bold text-text-primary mb-2 mt-4">财务模型 (Excel)</h4>
+                {renderDocList('financial_model')}
              </div>
           </TabsContent>
 

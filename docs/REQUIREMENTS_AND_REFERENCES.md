@@ -154,6 +154,7 @@
   - AI 增强笔记
   - 标签和分类系统
   - 任务管理功能
+  - **MCP (Model Context Protocol) 服务端实现** - 允许外部 AI 助手连接使用 Blinko 工具
 
 ### 🌐 截图与翻译
 

@@ -1,41 +1,23 @@
-import { ReactNode, Component, ErrorInfo, useState, useEffect } from 'react';
+import { ReactNode } from 'react';
 import React from 'react'
 import { cn } from '@heroui/react';
-
-class GradientErrorBoundary extends Component<{ children: ReactNode }> {
-  state = { hasError: false };
-  
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.log('ShaderGradient error caught:', error, errorInfo);
-  }
-  
-  render() {
-    if (this.state.hasError) {
-      return <div className="w-full h-full absolute top-0 left-0 bg-gradient-to-br from-blue-500 to-purple-600" />;
-    }
-    
-    return this.props.children;
-  }
-}
 
 interface GradientBackgroundProps {
   children: ReactNode;
   className?: string;
 }
 
-// 简单的 CSS 渐变背景 - 暂时禁用 WebGL shader 以排除问题
-const SimpleFallbackBackground = () => (
-  <div className="w-full h-full absolute top-0 left-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 animate-gradient-x" />
-);
-
+/**
+ * 简洁背景组件 - 与 CommonLayout 风格一致
+ * 使用 secondbackground 作为基础色，配合淡紫色模糊装饰
+ */
 export const GradientBackground = ({ children, className }: GradientBackgroundProps) => {
   return (
-    <div className={cn("relative w-full h-[100vh]", className)}>
-      <SimpleFallbackBackground />
+    <div className={cn("relative w-full h-[100vh] bg-secondbackground", className)}>
+      {/* 淡紫色模糊装饰 - 与 CommonLayout 一致 */}
+      <div className="hidden md:block absolute top-[10%] right-[5%] z-[0] h-[350px] w-[350px] overflow-hidden blur-3xl pointer-events-none">
+        <div className="w-full h-[356px] bg-[#9936e6] opacity-20" style={{ clipPath: 'circle(50% at 50% 50%)' }} />
+      </div>
       <div className="relative z-10 w-full h-full">
         {children}
       </div>

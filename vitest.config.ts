@@ -27,6 +27,8 @@ export default defineConfig({
       "packages/shared/vitest.config.ts",
       // RiskControl 原目录（兼容旧测试）
       "riskcontrol/vitest.config.ts",
+      // Echo Server 后端模块
+      "services/echo-server/vitest.config.ts",
     ],
     
     // 全局测试配置

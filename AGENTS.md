@@ -1,5 +1,22 @@
 # AGENTS
 
+## 🔴 关键架构规则
+
+### 双数据库架构
+项目使用两个独立的 Supabase 数据库，**禁止混用**：
+
+| 数据库 | 用途 | 数据内容 |
+|--------|------|----------|
+| **Investment DB** | 投资/风控 | 持仓、交易、NAV、资产快照、投资笔记 |
+| **Echo DB** | 笔记/AI | 笔记、标签、用户、AI 对话、文件管理 |
+
+详见 `.kiro/steering/database-architecture.md`
+
+### 前端整合状态
+- RiskControl 已整合到 Echo，访问路径 `/investment/*`
+- 投资模块使用 MobX (InvestmentStore)
+- 所有投资页面使用 HeroUI 组件
+
 <skills_system priority="1">
 
 ## Available Skills
@@ -105,6 +122,36 @@ Usage notes:
 <skill>
 <name>financial-data</name>
 <description>金融数据处理指南，包含 IBKR 数据导入、验证、清洗。</description>
+<location>workspace</location>
+</skill>
+
+<skill>
+<name>database-migration</name>
+<description>数据库迁移指南，包含 Drizzle/Prisma 迁移、回滚策略、生产环境安全工作流。</description>
+<location>workspace</location>
+</skill>
+
+<skill>
+<name>deployment-verification</name>
+<description>部署验证工作流，包含 Vercel/GCP 检查、环境变量同步。</description>
+<location>workspace</location>
+</skill>
+
+<skill>
+<name>error-handling</name>
+<description>错误处理最佳实践，包含错误分类、优雅降级、重试逻辑。</description>
+<location>workspace</location>
+</skill>
+
+<skill>
+<name>multi-service-debug</name>
+<description>多服务调试指南，包含日志聚合、服务间通信调试。</description>
+<location>workspace</location>
+</skill>
+
+<skill>
+<name>code-porter</name>
+<description>代码搬运师，优先搬运开源项目，禁止重复造轮子。</description>
 <location>workspace</location>
 </skill>
 

@@ -253,6 +253,14 @@ class ToolRegistryClass {
   }
 
   /**
+   * 清除所有工具（用于测试）
+   */
+  clearTools(): void {
+    this.tools.clear();
+    this.executionLogs = [];
+  }
+
+  /**
    * 将工具转换为 Mastra 格式
    */
   toMastraTools(names?: string[]): Record<string, any> {

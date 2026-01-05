@@ -17,6 +17,14 @@ import { TrainOfThoughtComponent } from '../trainOfThought';
 // 类型定义
 // ============================================
 
+/** 引用信息（用于投资对话） */
+export interface Citation {
+  source: string;
+  title: string;
+  content_snippet?: string;
+  url?: string;
+}
+
 export interface StreamMessage {
   rawResponse: string;
   trainOfThought: string[];
@@ -35,6 +43,8 @@ export interface StreamMessage {
   generatedFiles?: Array<{ name: string; content: string }>;
   generatedImages?: string[];
   generatedMermaidjsDiagram?: string;
+  /** 投资对话引用 */
+  citations?: Citation[];
 }
 
 interface ChatHistoryProps {
@@ -221,6 +231,7 @@ export default function ChatHistory(props: ChatHistoryProps) {
                     queryFiles: message.generatedFiles,
                     mermaidjsDiagram: message.generatedMermaidjsDiagram,
                     turnId: messageTurnId,
+                    citations: message.citations,
                   }}
                   conversationId={props.conversationId}
                   turnId={messageTurnId}

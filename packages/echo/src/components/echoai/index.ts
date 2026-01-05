@@ -25,7 +25,7 @@ export type {
 
 // 对话历史
 export { ChatHistory } from './chatHistory';
-export type { StreamMessage, ChatHistoryData } from './chatHistory';
+export type { StreamMessage, Citation } from './chatHistory';
 
 // 对话页面
 export { ChatPage } from './ChatPage';

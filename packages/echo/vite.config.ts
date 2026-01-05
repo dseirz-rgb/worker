@@ -123,8 +123,15 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@shared': path.resolve(__dirname, '../shared/echo'),
-      '@echoai/shared': path.resolve(__dirname, '../../packages/shared')
-    }
+      '@echoai/shared': path.resolve(__dirname, '../../packages/shared'),
+      // 强制使用 ESM 版本，解决 "require is not defined" 错误
+      // 注意：必须指向 es/index.js 而不是 dist/index.js
+      'mobx-react-lite': path.resolve(__dirname, '../../node_modules/mobx-react-lite/es/index.js'),
+      'mobx': path.resolve(__dirname, '../../node_modules/mobx/dist/mobx.esm.js'),
+    },
+    // 确保优先解析 ESM 模块
+    mainFields: ['module', 'jsnext:main', 'jsnext', 'main'],
+    extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
   },
   // 从 monorepo 根目录加载 .env 文件
   envDir: path.resolve(__dirname, '../..'),
@@ -170,9 +177,23 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    force: false,
-    include: ['react', 'react-dom', 'react-router-dom'],
-    exclude: []
+    force: true,  // 强制重新预构建
+    include: [
+      'react', 
+      'react-dom', 
+      'react-router-dom',
+      'use-sync-external-store',
+      'use-sync-external-store/shim',
+      'use-sync-external-store/shim/index.js'
+    ],
+    // 排除已通过 alias 指定 ESM 路径的包，避免 Vite 预构建时选择 CJS 入口
+    exclude: ['mobx', 'mobx-react-lite'],
+    esbuildOptions: {
+      // 确保 CommonJS 模块正确转换
+      define: {
+        global: 'globalThis'
+      }
+    }
   },
   css: {
     devSourcemap: false

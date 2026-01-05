@@ -7,10 +7,9 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fc from 'fast-check';
-import { ToolRegistry, ToolContext, ToolDefinition } from './toolRegistry';
 import { z } from 'zod/v3';
 
-// Mock prisma
+// Mock prisma - 必须在导入 ToolRegistry 之前
 vi.mock('@server/prisma', () => ({
   prisma: {
     agent: {
@@ -19,13 +18,25 @@ vi.mock('@server/prisma', () => ({
   },
 }));
 
+// 导入被测模块（在 mock 之后）
+import { ToolRegistry, ToolContext, ToolDefinition } from './toolRegistry';
 import { prisma } from '@server/prisma';
 
 describe('ToolRegistry 属性测试', () => {
   beforeEach(() => {
-    // 清除所有工具
-    (ToolRegistry as any).tools.clear();
-    (ToolRegistry as any).executionLogs = [];
+    // 使用公开的 clearTools 方法清除状态（如果存在）
+    if (typeof ToolRegistry.clearTools === 'function') {
+      ToolRegistry.clearTools();
+    } else {
+      // 降级方案：直接访问私有属性
+      const registry = ToolRegistry as any;
+      if (registry.tools && typeof registry.tools.clear === 'function') {
+        registry.tools.clear();
+      }
+      if (registry.executionLogs && Array.isArray(registry.executionLogs)) {
+        registry.executionLogs.length = 0;
+      }
+    }
     vi.clearAllMocks();
   });
 

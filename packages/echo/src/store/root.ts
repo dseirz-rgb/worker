@@ -1,5 +1,6 @@
-import {  makeObservable } from "mobx";
+import { makeObservable } from "mobx";
 import { type Store, type StoreClass } from "./standard/base";
+// 直接从 ESM 入口导入，Vite 会通过 alias 解析到正确的 ESM 文件
 import { useLocalObservable } from "mobx-react-lite";
 
 

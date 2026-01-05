@@ -36,6 +36,9 @@ import { researchRouter } from './research';
 import { agentRouter } from './agent';
 import { automationRouter } from './automation';
 import { featureFlagRouter } from './featureFlag';
+import { backupRouter } from './backup';
+import { investmentRouter } from './investment';
+import { driveSyncRouter } from './driveSync';
 
 export const appRouter = router({
   ai: aiRouter,
@@ -70,6 +73,11 @@ export const appRouter = router({
   agent: agentRouter,
   automation: automationRouter,
   featureFlag: featureFlagRouter,
+  backup: backupRouter,
+  // 投资 AI 模块
+  investment: investmentRouter,
+  // Google Drive 同步
+  driveSync: driveSyncRouter,
 });
 
 export const createCaller = t.createCallerFactory(appRouter);

@@ -14,6 +14,7 @@ import { RebuildEmbeddingJob } from './jobs/rebuildEmbeddingJob';
 import { RecommandJob } from './jobs/recommandJob';
 import { AIScheduledTaskJob } from './jobs/aiScheduledTaskJob';
 import { DailyReportJob } from './jobs/dailyReportJob';
+import { DriveSyncJob } from './jobs/driveSyncJob';
 
 // 统一 API 网关健康监控
 import { healthMonitor } from './lib/healthMonitor';
@@ -92,6 +93,7 @@ async function initializeJobs() {
     await RecommandJob.initialize();
     await AIScheduledTaskJob.initialize();
     await DailyReportJob.initialize();
+    await DriveSyncJob.initialize();
     
     console.log('All scheduled jobs initialized successfully');
   } catch (error) {

@@ -126,6 +126,14 @@ export interface AgentData {
   output_modes: string[];
 }
 
+/** 引用信息（用于投资对话） */
+export interface Citation {
+  source: string;
+  title: string;
+  content_snippet?: string;
+  url?: string;
+}
+
 export interface SingleChatMessage {
   automationId: string;
   by: string;
@@ -144,6 +152,8 @@ export interface SingleChatMessage {
   queryFiles?: AttachedFileText[];
   excalidrawDiagram?: string;
   mermaidjsDiagram?: string;
+  /** 投资对话引用 */
+  citations?: Citation[];
 }
 
 interface ChatMessageProps {
@@ -314,6 +324,89 @@ function FeedbackButtons({ uquery, kquery }: FeedbackButtonsProps) {
           />
         </Button>
       </Tooltip>
+    </div>
+  );
+}
+
+// ============================================
+// 引用显示组件（投资对话专用）
+// ============================================
+
+interface CitationsDisplayProps {
+  citations: Citation[];
+}
+
+function CitationsDisplay({ citations }: CitationsDisplayProps) {
+  const [expanded, setExpanded] = useState(false);
+  
+  if (!citations || citations.length === 0) return null;
+
+  const displayCitations = expanded ? citations : citations.slice(0, 3);
+  const hasMore = citations.length > 3;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-default-100">
+      <div className="flex items-center gap-2 mb-2">
+        <Icon icon="mdi:bookmark-outline" className="w-4 h-4 text-amber-500" />
+        <span className="text-xs font-medium text-foreground/70">
+          引用来源 ({citations.length})
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {displayCitations.map((citation, index) => (
+          <Tooltip 
+            key={index}
+            content={
+              <div className="max-w-xs p-2">
+                <p className="font-medium text-sm">{citation.title}</p>
+                {citation.content_snippet && (
+                  <p className="text-xs text-default-400 mt-1 line-clamp-3">
+                    {citation.content_snippet}
+                  </p>
+                )}
+                <p className="text-xs text-default-500 mt-1">
+                  来源: {citation.source}
+                </p>
+              </div>
+            }
+          >
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 rounded-md cursor-pointer hover:bg-amber-500/20 transition-colors">
+              <Icon 
+                icon={
+                  citation.source.includes('note') ? 'mdi:note-text' :
+                  citation.source.includes('book') ? 'mdi:book-open-variant' :
+                  citation.source.includes('report') ? 'mdi:file-document' :
+                  'mdi:file-outline'
+                } 
+                className="w-3 h-3 text-amber-600" 
+              />
+              <span className="text-xs text-amber-700 dark:text-amber-400 truncate max-w-[120px]">
+                {citation.title}
+              </span>
+            </div>
+          </Tooltip>
+        ))}
+        {hasMore && !expanded && (
+          <Button
+            size="sm"
+            variant="light"
+            className="h-6 px-2 text-xs"
+            onPress={() => setExpanded(true)}
+          >
+            +{citations.length - 3} 更多
+          </Button>
+        )}
+        {expanded && hasMore && (
+          <Button
+            size="sm"
+            variant="light"
+            className="h-6 px-2 text-xs"
+            onPress={() => setExpanded(false)}
+          >
+            收起
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -576,6 +669,11 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>((props, ref) =>
               />
             );
           })()}
+
+          {/* 投资对话引用显示 */}
+          {isAI && props.chatMessage.citations && props.chatMessage.citations.length > 0 && (
+            <CitationsDisplay citations={props.chatMessage.citations} />
+          )}
         </div>
 
         {/* 消息底部操作栏 */}

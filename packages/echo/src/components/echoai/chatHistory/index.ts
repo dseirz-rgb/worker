@@ -3,4 +3,4 @@
  */
 
 export { default as ChatHistory } from './chatHistory';
-export type { StreamMessage, ChatHistoryData } from './chatHistory';
+export type { StreamMessage, Citation } from './chatHistory';
