@@ -19,7 +19,7 @@ const investmentSubItems = [
   { title: '风险', href: '/investment/risk', icon: 'mdi:shield-alert' },
   { title: '市场', href: '/investment/market', icon: 'mdi:chart-line' },
   { title: '决策', href: '/investment/decision', icon: 'mdi:brain' },
-  { title: '镜像', href: '/investment/mirror', icon: 'mdi:account-group' },
+  { title: 'AI 投资镜子', href: '/investment/mirror', icon: 'mdi:robot-outline' },
   { title: '笔记', href: '/investment/notes', icon: 'mdi:note-text' },
   { title: '语音', href: '/investment/voice', icon: 'mdi:microphone' },
   { title: '回顾', href: '/investment/review', icon: 'mdi:calendar-check' },

@@ -13,7 +13,7 @@ const ROLES = [
   { id: 'assistant', name: '通用助手', icon: '🎯', description: '日常笔记、翻译、活动监控', route: '/', available: true },
   { id: 'developer', name: 'AI 开发者', icon: '🧑‍💻', description: 'GitHub 监控、项目追踪', route: '/developer', available: false },
   { id: 'manager', name: '美术经理', icon: '👨‍💼', description: '团队管理、周报、会议记录', route: '/manager', available: false },
-  { id: 'investor', name: '投资者', icon: '📈', description: '投资数据、情绪管理、风控', route: '/investor', available: false },
+  { id: 'investor', name: '投资者', icon: '📈', description: '投资数据、情绪管理、风控', route: '/investment', available: true },
   { id: 'family', name: '家庭成员', icon: '👨‍👩‍👧', description: '家庭关怀、健康追踪', route: '/family', available: false },
 ];
 

@@ -969,5 +969,7 @@
   "upload-first-document": "Upload your first document",
   "loading-documents": "Loading documents...",
   "load-more": "Load more",
-  "all-documents-loaded": "All documents loaded"
+  "all-documents-loaded": "All documents loaded",
+  "ai-assistant": "AI Assistant",
+  "ai-search": "Smart Search"
 }

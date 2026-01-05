@@ -12,44 +12,51 @@ export class BaseStore implements Store {
     makeAutoObservable(this);
   }
   routerList = [
-    // 主导航
+    // ========== 核心功能 (每天使用) ==========
     {
       title: 'home',
       href: '/echoai/home',
       icon: 'mdi:home',
-      group: 'main',
+      group: 'core',
     },
     {
       title: 'notes',
       href: '/notes',
       icon: 'hugeicons:note',
-      group: 'main',
+      group: 'core',
     },
     {
       title: 'files',
       href: '/files',
       icon: 'solar:folder-with-files-bold-duotone',
-      group: 'main',
+      group: 'core',
     },
+    // ========== AI 助手 (可展开) ==========
     {
-      title: 'echoai',
+      title: 'ai-chat',
       href: '/echoai',
-      icon: 'mdi:robot-outline',
-      group: 'main',
+      icon: 'mdi:chat-outline',
+      group: 'ai',
     },
     {
-      title: 'search',
+      title: 'ai-search',
       href: '/echoai/search',
       icon: 'mdi:magnify',
-      group: 'main',
+      group: 'ai',
     },
     {
       title: 'daily-report',
       href: '/echoai/report',
       icon: 'mdi:file-document-outline',
-      group: 'main',
+      group: 'ai',
     },
-    // 工具箱
+    {
+      title: 'voice-assistant',
+      href: '/voice-assistant',
+      icon: 'mdi:microphone',
+      group: 'ai',
+    },
+    // ========== 更多工具 (可折叠) ==========
     {
       title: 'analytics',
       href: '/analytics',
@@ -60,30 +67,6 @@ export class BaseStore implements Store {
       title: 'translation',
       href: '/translation',
       icon: 'hugeicons:translate',
-      group: 'tools',
-    },
-    {
-      title: 'resources',
-      href: '/resources',
-      icon: 'solar:database-linear',
-      group: 'tools',
-    },
-    {
-      title: 'activity',
-      href: '/activity',
-      icon: 'hugeicons:activity-01',
-      group: 'tools',
-    },
-    {
-      title: 'research',
-      href: '/research',
-      icon: 'solar:magnifer-zoom-in-bold-duotone',
-      group: 'tools',
-    },
-    {
-      title: 'automations',
-      href: '/automations',
-      icon: 'solar:clock-circle-bold-duotone',
       group: 'tools',
     },
     {
@@ -99,9 +82,9 @@ export class BaseStore implements Store {
       group: 'tools',
     },
     {
-      title: 'voice-assistant',
-      href: '/voice-assistant',
-      icon: 'mdi:microphone',
+      title: 'automations',
+      href: '/automations',
+      icon: 'solar:clock-circle-bold-duotone',
       group: 'tools',
     },
     {
@@ -110,7 +93,7 @@ export class BaseStore implements Store {
       icon: 'hugeicons:settings-01',
       group: 'tools',
     },
-    // 隐藏路由（仍可访问，但不在侧边栏显示）
+    // ========== 隐藏路由 ==========
     {
       title: 'blinko',
       href: '/',
@@ -136,6 +119,24 @@ export class BaseStore implements Store {
       icon: 'hugeicons:plug-socket',
       hiddenSidebar: true,
     },
+    {
+      title: 'resources',
+      href: '/resources',
+      icon: 'solar:database-linear',
+      hiddenSidebar: true,
+    },
+    {
+      title: 'activity',
+      href: '/activity',
+      icon: 'hugeicons:activity-01',
+      hiddenSidebar: true,
+    },
+    {
+      title: 'research',
+      href: '/research',
+      icon: 'solar:magnifer-zoom-in-bold-duotone',
+      hiddenSidebar: true,
+    },
   ];
 
   // 工具箱展开状态
@@ -144,12 +145,26 @@ export class BaseStore implements Store {
     default: false,
   });
 
+  // AI 助手展开状态
+  aiExpanded = new StorageState<boolean>({
+    key: 'ai-expanded',
+    default: true,
+  });
+
   get isToolsExpanded() {
     return this.toolsExpanded.value;
   }
 
+  get isAiExpanded() {
+    return this.aiExpanded.value;
+  }
+
   toggleTools = () => {
     this.toolsExpanded.save(!this.isToolsExpanded);
+  };
+
+  toggleAi = () => {
+    this.aiExpanded.save(!this.isAiExpanded);
   };
   currentRouter = this.routerList[0];
   currentQuery = {};

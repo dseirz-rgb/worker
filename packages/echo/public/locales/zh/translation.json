@@ -1022,5 +1022,7 @@
   "command-description": "要执行的命令",
   "mcp-endpoint-description": "MCP 服务器端点 URL",
   "headers-description": "HTTP 头的 JSON 对象",
-  "env-description": "环境变量的 JSON 对象"
+  "env-description": "环境变量的 JSON 对象",
+  "ai-assistant": "AI 助手",
+  "ai-search": "智能搜索"
 }
