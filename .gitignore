@@ -104,3 +104,4 @@ services/janitor/seekdb_data/
 
 # Vendor kiro configs (not our configs)
 vendor/.kiro/
+services/echo-server/.blinko/
