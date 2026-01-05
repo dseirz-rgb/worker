@@ -176,7 +176,7 @@ export function ChatPage({
   const isMobileWidth = typeof window !== 'undefined' && window.innerWidth < 768;
 
   return (
-    <div className="flex h-full bg-background">
+    <div className="flex h-full">
       {/* 侧边栏 */}
       {showSidebar && !isMobileWidth && (
         <ChatSidebar
@@ -194,7 +194,7 @@ export function ChatPage({
       {/* 主内容区 */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* 头部 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-divider bg-background/80 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-divider">
           <div className="flex items-center gap-3">
             {/* 移动端菜单按钮 */}
             {isMobileWidth && showSidebar && (
@@ -373,7 +373,7 @@ export function ChatPage({
         </div>
 
         {/* 输入区域 */}
-        <div className="p-4 border-t border-divider bg-background/80 backdrop-blur-sm">
+        <div className="p-4 border-t border-divider">
           <ChatInputArea
             ref={chatInputRef}
             sendMessage={handleSendMessage}

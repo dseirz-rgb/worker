@@ -1,46 +1,36 @@
 /**
  * 投资模块 - 投资镜像页面
- * 投资回顾与绩效分析
+ * 
+ * AI 投资对话助手，支持上下文引用（研报、简报、持仓）
+ * 复用 Echo AI 的 UI 组件，调用 Investment Agent API
+ * 
+ * @module @echoai/pages/investment/mirror
  */
 
-import { observer } from 'mobx-react-lite';
-import { Link } from 'react-router-dom';
-import { Card, CardBody, CardHeader, Button, Chip } from '@heroui/react';
-import { Icon } from '@iconify/react';
-import { GradientBackground } from '@/components/Common/GradientBackground';
+import { useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { InvestmentChatPage } from '@/components/InvestmentChat/InvestmentChatPage';
+import { useInvestmentStore } from '@/store';
 
-const InvestmentMirrorPage = observer(() => {
+const InvestmentMirrorPage = () => {
+  const [searchParams] = useSearchParams();
+  const conversationId = searchParams.get('conversation');
+  const investmentStore = useInvestmentStore();
+
+  // 初始化时加载投资数据（用于上下文）
+  useEffect(() => {
+    investmentStore.fetchPositions();
+    investmentStore.fetchRiskMetrics();
+  }, [investmentStore]);
+
   return (
-    <GradientBackground className="h-full overflow-auto">
-      <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
-        <div className="flex items-center gap-3">
-          <Link to="/investment">
-            <Button isIconOnly variant="light" size="sm">
-              <Icon icon="mdi:arrow-left" className="text-xl" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Icon icon="mdi:account-group" className="text-primary" />
-              投资镜像
-            </h1>
-            <p className="text-foreground/60 mt-1">投资回顾与绩效分析</p>
-          </div>
-        </div>
-
-        <Card className="bg-content1/50 backdrop-blur-sm">
-          <CardBody className="p-8 text-center">
-            <Icon icon="mdi:mirror" className="text-6xl text-primary/50 mb-4 mx-auto" />
-            <h3 className="text-xl font-semibold mb-2">投资镜像</h3>
-            <p className="text-foreground/60 mb-4">
-              回顾您的投资历程，分析绩效表现
-            </p>
-            <Chip color="warning" variant="flat">功能开发中</Chip>
-          </CardBody>
-        </Card>
-      </div>
-    </GradientBackground>
+    <div className="h-full overflow-hidden">
+      <InvestmentChatPage 
+        initialConversationId={conversationId || undefined}
+        showSidebar={true}
+      />
+    </div>
   );
-});
+};
 
 export default InvestmentMirrorPage;

@@ -68,7 +68,7 @@ export function ChatSidebar({
   // 折叠状态
   if (isCollapsed) {
     return (
-      <div className="w-12 h-full flex flex-col items-center py-4 border-r border-divider bg-background/50">
+      <div className="w-12 h-full flex flex-col items-center py-4 border-r border-divider">
         <Tooltip content={t('new-conversation')} placement="right">
           <Button
             isIconOnly
@@ -94,7 +94,7 @@ export function ChatSidebar({
   }
 
   return (
-    <div className="w-64 h-full flex flex-col border-r border-divider bg-background/50">
+    <div className="w-64 h-full flex flex-col border-r border-divider">
       {/* 头部 */}
       <div className="flex items-center justify-between p-3 border-b border-divider">
         <h2 className="font-medium text-sm">{t('conversations')}</h2>
