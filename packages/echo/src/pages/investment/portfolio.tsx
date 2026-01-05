@@ -59,8 +59,8 @@ const filterOptions = [
   { key: 'bond', label: '债券' },
 ];
 
-// 持仓行组件（桌面端表格）
-const PositionRow = observer(({ position }: { position: Position }) => {
+// 渲染持仓行（桌面端表格）
+const renderPositionRow = (position: Position) => {
   const pnlColor = position.unrealizedPnL >= 0 ? 'text-success' : 'text-danger';
   const pnlBgColor = position.unrealizedPnL >= 0 ? 'bg-success/10' : 'bg-danger/10';
 
@@ -114,7 +114,7 @@ const PositionRow = observer(({ position }: { position: Position }) => {
       </TableCell>
     </TableRow>
   );
-});
+};
 
 // 持仓卡片组件（移动端）
 const PositionCard = observer(({ position }: { position: Position }) => {
@@ -218,6 +218,9 @@ const PortfolioPage = observer(() => {
     if (store.positions.length === 0) {
       store.fetchPositions();
     }
+    if (!store.dashboardSnapshot) {
+      store.fetchRiskMetrics();
+    }
   }, [store]);
 
   // 筛选和排序后的持仓列表
@@ -303,10 +306,17 @@ const PortfolioPage = observer(() => {
         {/* 汇总统计 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <SummaryCard
-            title="总市值"
-            value={`¥${(store.totalMarketValue / 10000).toFixed(2)}万`}
+            title="账户净值"
+            value={`¥${(store.accountNetWorth / 10000).toFixed(2)}万`}
+            subtitle={store.dashboardSnapshot?.netWorthUSD ? `$${(store.dashboardSnapshot.netWorthUSD / 10000).toFixed(2)}万` : undefined}
             icon="mdi:cash-multiple"
             color="primary"
+          />
+          <SummaryCard
+            title="持仓市值"
+            value={`¥${(store.totalMarketValue / 10000).toFixed(2)}万`}
+            icon="mdi:wallet"
+            color="secondary"
           />
           <SummaryCard
             title="未实现盈亏"
@@ -320,13 +330,6 @@ const PortfolioPage = observer(() => {
             value={`${store.positions.length}`}
             subtitle="个标的"
             icon="mdi:briefcase"
-            color="secondary"
-          />
-          <SummaryCard
-            title="资产类型"
-            value={`${Object.keys(assetTypeStats).length}`}
-            subtitle="种类型"
-            icon="mdi:shape"
             color="warning"
           />
         </div>
@@ -428,10 +431,8 @@ const PortfolioPage = observer(() => {
                       <TableColumn className="text-right">盈亏</TableColumn>
                       <TableColumn className="text-right">权重</TableColumn>
                     </TableHeader>
-                    <TableBody>
-                      {filteredPositions.map(position => (
-                        <PositionRow key={position.id} position={position} />
-                      ))}
+                    <TableBody items={filteredPositions}>
+                      {(position) => renderPositionRow(position)}
                     </TableBody>
                   </Table>
                 </div>

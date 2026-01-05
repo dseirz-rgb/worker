@@ -5,7 +5,6 @@
  * **Validates: Requirements 4.1, 4.2**
  */
 
-import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardBody, CardHeader, Chip, Progress, Skeleton, Button } from '@heroui/react';
@@ -49,7 +48,7 @@ interface StatCardProps {
   trend?: 'up' | 'down' | 'stable';
 }
 
-const StatCard = observer(({ title, value, subtitle, icon, color = 'primary', loading, trend }: StatCardProps) => {
+const StatCard = ({ title, value, subtitle, icon, color = 'primary', loading, trend }: StatCardProps) => {
   const trendIcon = trend === 'up' ? 'mdi:trending-up' : trend === 'down' ? 'mdi:trending-down' : null;
   const trendColor = trend === 'up' ? 'text-success' : trend === 'down' ? 'text-danger' : '';
 
@@ -80,10 +79,10 @@ const StatCard = observer(({ title, value, subtitle, icon, color = 'primary', lo
       </CardBody>
     </Card>
   );
-});
+};
 
 // 警报列表组件
-const AlertsList = observer(({ alerts, loading }: { alerts: any[]; loading: boolean }) => {
+const AlertsList = ({ alerts, loading }: { alerts: any[]; loading: boolean }) => {
   if (loading) {
     return (
       <div className="space-y-2">
@@ -125,10 +124,10 @@ const AlertsList = observer(({ alerts, loading }: { alerts: any[]; loading: bool
       ))}
     </div>
   );
-});
+};
 
 // 熔断器状态组件
-const CircuitBreakerStatus = observer(({ states, loading }: { states: any[]; loading: boolean }) => {
+const CircuitBreakerStatus = ({ states, loading }: { states: any[]; loading: boolean }) => {
   if (loading) {
     return <Skeleton className="h-20 w-full rounded-lg" />;
   }
@@ -155,10 +154,10 @@ const CircuitBreakerStatus = observer(({ states, loading }: { states: any[]; loa
       </div>
     </div>
   );
-});
+};
 
 // 主页面组件
-const InvestmentDashboard = observer(() => {
+const InvestmentDashboard = () => {
   const store = RootStore.Get(InvestmentStore);
 
   // 初始化加载数据
@@ -215,10 +214,18 @@ const InvestmentDashboard = observer(() => {
         {/* 统计卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            title="总市值"
-            value={store.totalMarketValue > 0 ? `¥${(store.totalMarketValue / 10000).toFixed(2)}万` : '--'}
+            title="账户净值"
+            value={store.accountNetWorth > 0 ? `¥${(store.accountNetWorth / 10000).toFixed(2)}万` : '--'}
+            subtitle={store.dashboardSnapshot?.netWorthUSD ? `$${(store.dashboardSnapshot.netWorthUSD / 10000).toFixed(2)}万` : undefined}
             icon="mdi:cash-multiple"
             color="primary"
+            loading={store.loading.riskMetrics}
+          />
+          <StatCard
+            title="持仓市值"
+            value={store.totalMarketValue > 0 ? `¥${(store.totalMarketValue / 10000).toFixed(2)}万` : '--'}
+            icon="mdi:wallet"
+            color="secondary"
             loading={store.loading.positions}
           />
           <StatCard
@@ -229,14 +236,6 @@ const InvestmentDashboard = observer(() => {
             color={store.totalUnrealizedPnL >= 0 ? 'success' : 'danger'}
             loading={store.loading.positions}
             trend={store.totalUnrealizedPnL > 0 ? 'up' : store.totalUnrealizedPnL < 0 ? 'down' : 'stable'}
-          />
-          <StatCard
-            title="持仓数量"
-            value={store.positions.length}
-            subtitle="个标的"
-            icon="mdi:briefcase"
-            color="secondary"
-            loading={store.loading.positions}
           />
           <StatCard
             title="活跃警报"
@@ -352,6 +351,6 @@ const InvestmentDashboard = observer(() => {
       </div>
     </GradientBackground>
   );
-});
+};
 
 export default InvestmentDashboard;

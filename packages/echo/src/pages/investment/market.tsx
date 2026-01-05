@@ -2,106 +2,420 @@
  * 投资模块 - 市场分析页面
  * 展示市场数据、图表分析
  * 
+ * 从 RiskControl MarketAnalysis.tsx 迁移，使用 HeroUI 组件
+ * 
  * **Validates: Requirements 4.1**
  */
 
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Card,
   CardBody,
-  CardHeader,
   Chip,
   Button,
   Tabs,
   Tab,
   Input,
+  Spinner,
 } from '@heroui/react';
 import { Icon } from '@iconify/react';
 import { GradientBackground } from '@/components/Common/GradientBackground';
+import { EconomicCalendar } from '@/components/investment/EconomicCalendar';
+import { MacroDataPanel } from '@/components/investment/MacroDataPanel';
+import { TradingViewWidget } from '@/components/investment/TradingViewWidget';
+import { TRADINGVIEW_SCRIPTS, STOCK_HEATMAP_CONFIG } from '@/lib/tradingViewConfigs';
 
-// 市场指数数据（模拟）
-const marketIndices = [
-  { name: '上证指数', code: 'SH000001', value: 3089.26, change: 0.45, changePercent: 0.015 },
-  { name: '深证成指', code: 'SZ399001', value: 9876.54, change: -23.45, changePercent: -0.24 },
-  { name: '创业板指', code: 'SZ399006', value: 1923.45, change: 12.34, changePercent: 0.65 },
-  { name: '恒生指数', code: 'HK.HSI', value: 17234.56, change: -156.78, changePercent: -0.90 },
-  { name: '纳斯达克', code: 'US.IXIC', value: 15678.90, change: 234.56, changePercent: 1.52 },
-  { name: '标普500', code: 'US.SPX', value: 4567.89, change: 45.67, changePercent: 1.01 },
+// ============ Types ============
+
+interface MarketIndex {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  region: 'US' | 'HK' | 'CN' | 'EU';
+}
+
+interface SectorData {
+  name: string;
+  changePercent: number;
+}
+
+interface HotStock {
+  symbol: string;
+  name: string;
+  category: string;
+  price: number;
+  change: number;
+  changePercent: number;
+}
+
+type TabId = 'overview' | 'sectors' | 'calendar' | 'economy' | 'analysis';
+
+// ============ Constants ============
+
+// 全球主要指数配置
+const MARKET_INDICES = [
+  { symbol: '^DJI', name: '道琼斯', region: 'US' as const },
+  { symbol: '^GSPC', name: '标普500', region: 'US' as const },
+  { symbol: '^IXIC', name: '纳斯达克', region: 'US' as const },
+  { symbol: '^HSI', name: '恒生指数', region: 'HK' as const },
+  { symbol: '000001.SS', name: '上证指数', region: 'CN' as const },
+  { symbol: '^FTSE', name: '富时100', region: 'EU' as const },
 ];
 
-// 热门股票（模拟）
-const hotStocks = [
-  { ticker: 'NVDA', name: '英伟达', price: 456.78, change: 12.34, changePercent: 2.78 },
-  { ticker: 'AAPL', name: '苹果', price: 178.90, change: -2.34, changePercent: -1.29 },
-  { ticker: 'TSLA', name: '特斯拉', price: 234.56, change: 8.90, changePercent: 3.94 },
-  { ticker: '600519', name: '贵州茅台', price: 1678.90, change: -23.45, changePercent: -1.38 },
-  { ticker: '000858', name: '五粮液', price: 145.67, change: 3.45, changePercent: 2.43 },
+// 美股板块 ETF
+const SECTOR_ETFS = [
+  { symbol: 'XLK', name: '科技' },
+  { symbol: 'XLF', name: '金融' },
+  { symbol: 'XLV', name: '医疗' },
+  { symbol: 'XLE', name: '能源' },
+  { symbol: 'XLI', name: '工业' },
+  { symbol: 'XLY', name: '消费' },
+  { symbol: 'XLP', name: '必需品' },
+  { symbol: 'XLU', name: '公用事业' },
+  { symbol: 'XLB', name: '材料' },
+  { symbol: 'XLRE', name: '房地产' },
+  { symbol: 'XLC', name: '通信' },
 ];
+
+// M7 科技巨头
+const M7_STOCKS = [
+  { symbol: 'AAPL', name: '苹果', category: 'M7' },
+  { symbol: 'MSFT', name: '微软', category: 'M7' },
+  { symbol: 'GOOGL', name: '谷歌', category: 'M7' },
+  { symbol: 'AMZN', name: '亚马逊', category: 'M7' },
+  { symbol: 'NVDA', name: '英伟达', category: 'M7' },
+  { symbol: 'META', name: 'Meta', category: 'M7' },
+  { symbol: 'TSLA', name: '特斯拉', category: 'M7' },
+];
+
+// 中概互联股票
+const CHINA_TECH_STOCKS = [
+  { symbol: 'BABA', name: '阿里巴巴', category: '中概' },
+  { symbol: 'PDD', name: '拼多多', category: '中概' },
+  { symbol: 'JD', name: '京东', category: '中概' },
+  { symbol: 'BIDU', name: '百度', category: '中概' },
+  { symbol: 'NIO', name: '蔚来', category: '中概' },
+];
+
+// Worker 代理 URL
+const WORKER_PROXY_URL = 'https://marketdata.dseirz.workers.dev';
+
+// ============ Data Fetching ============
+
+async function fetchFromWorker(ticker: string): Promise<{ price: number; prevClose: number; changePercent: number } | null> {
+  try {
+    const url = `${WORKER_PROXY_URL}/quote?symbol=${encodeURIComponent(ticker)}`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (data.error) return null;
+    
+    const price = data.price || 0;
+    const prevClose = data.prevClose || price;
+    const changePercent = prevClose > 0 
+      ? ((price - prevClose) / prevClose) * 100 
+      : 0;
+    
+    return { price, prevClose, changePercent };
+  } catch (error) {
+    console.warn(`Worker API failed for ${ticker}:`, error);
+    return null;
+  }
+}
+
+// ============ Components ============
 
 // 市场指数卡片
-const IndexCard = observer(({ index }: { index: typeof marketIndices[0] }) => {
-  const isPositive = index.change >= 0;
-  const color = isPositive ? 'success' : 'danger';
+const IndexCard = observer(({ index, isLoading }: { index: MarketIndex | null; isLoading: boolean }) => {
+  if (isLoading || !index) {
+    return (
+      <Card className="bg-content1/50 backdrop-blur-sm animate-pulse">
+        <CardBody className="p-4">
+          <div className="h-4 bg-foreground/10 rounded w-20 mb-2"></div>
+          <div className="h-6 bg-foreground/10 rounded w-24 mb-1"></div>
+          <div className="h-4 bg-foreground/10 rounded w-16"></div>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  const isPositive = index.changePercent >= 0;
+  const regionColors: Record<string, string> = {
+    US: 'primary',
+    HK: 'danger',
+    CN: 'warning',
+    EU: 'secondary',
+  };
 
   return (
-    <Card className="bg-content1/50 backdrop-blur-sm">
+    <Card className="bg-content1/50 backdrop-blur-sm hover:bg-content1/70 transition-colors">
       <CardBody className="p-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-foreground/60">{index.name}</p>
-            <p className="text-2xl font-bold mt-1">{index.value.toLocaleString()}</p>
-          </div>
-          <Chip color={color} variant="flat" size="sm">
-            {isPositive ? '+' : ''}{index.changePercent.toFixed(2)}%
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-foreground/60">{index.name}</span>
+          <Chip size="sm" color={regionColors[index.region] as any} variant="flat">
+            {index.region}
           </Chip>
         </div>
-        <div className={`text-sm mt-2 ${isPositive ? 'text-success' : 'text-danger'}`}>
-          {isPositive ? '+' : ''}{index.change.toFixed(2)}
+        <div className="text-xl font-bold mb-1">
+          {index.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+        <div className={`flex items-center gap-1 text-sm ${isPositive ? 'text-success' : 'text-danger'}`}>
+          <Icon icon={isPositive ? 'mdi:arrow-up' : 'mdi:arrow-down'} />
+          <span>{isPositive ? '+' : ''}{index.changePercent.toFixed(2)}%</span>
+          <span className="text-foreground/30 ml-1">
+            ({isPositive ? '+' : ''}{index.change.toFixed(2)})
+          </span>
         </div>
       </CardBody>
     </Card>
   );
 });
 
-// 股票行组件
-const StockRow = observer(({ stock }: { stock: typeof hotStocks[0] }) => {
-  const isPositive = stock.change >= 0;
-  const color = isPositive ? 'text-success' : 'text-danger';
-  const bgColor = isPositive ? 'bg-success/10' : 'bg-danger/10';
+// 热门股票卡片
+const StockCard = observer(({ stock, isLoading }: { stock: HotStock | null; isLoading: boolean }) => {
+  if (isLoading || !stock) {
+    return (
+      <Card className="bg-content1/50 backdrop-blur-sm animate-pulse">
+        <CardBody className="p-3">
+          <div className="h-4 bg-foreground/10 rounded w-16 mb-2"></div>
+          <div className="h-5 bg-foreground/10 rounded w-20 mb-1"></div>
+          <div className="h-4 bg-foreground/10 rounded w-14"></div>
+        </CardBody>
+      </Card>
+    );
+  }
 
+  const isPositive = stock.changePercent >= 0;
+  
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg hover:bg-content2/50 transition-colors">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-          <span className="text-xs font-bold text-primary">{stock.ticker.slice(0, 2)}</span>
+    <Card className="bg-content1/50 backdrop-blur-sm hover:bg-content1/70 transition-colors">
+      <CardBody className="p-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm font-medium">{stock.symbol}</span>
+          <Chip 
+            size="sm" 
+            color={stock.category === 'M7' ? 'secondary' : 'danger'} 
+            variant="flat"
+          >
+            {stock.category}
+          </Chip>
         </div>
-        <div>
-          <p className="font-semibold">{stock.ticker}</p>
-          <p className="text-xs text-foreground/50">{stock.name}</p>
+        <div className="text-xs text-foreground/40 mb-1 truncate">{stock.name}</div>
+        <div className="text-lg font-bold">
+          ${stock.price.toFixed(2)}
         </div>
-      </div>
-      <div className="text-right">
-        <p className="font-mono font-semibold">${stock.price.toFixed(2)}</p>
-        <div className={`text-xs ${color} ${bgColor} px-2 py-0.5 rounded inline-block`}>
-          {isPositive ? '+' : ''}{stock.changePercent.toFixed(2)}%
+        <div className={`flex items-center gap-1 text-sm ${isPositive ? 'text-success' : 'text-danger'}`}>
+          <Icon icon={isPositive ? 'mdi:arrow-up' : 'mdi:arrow-down'} className="text-xs" />
+          <span>{isPositive ? '+' : ''}{stock.changePercent.toFixed(2)}%</span>
         </div>
-      </div>
-    </div>
+      </CardBody>
+    </Card>
   );
 });
 
-// 主页面组件
+// 板块热力图单元格
+const SectorCell = ({ sector, maxChange }: { sector: SectorData; maxChange: number }) => {
+  const intensity = Math.min(Math.abs(sector.changePercent) / maxChange, 1);
+  const isPositive = sector.changePercent >= 0;
+  
+  return (
+    <div 
+      className={`rounded-lg p-3 transition-all hover:scale-105 cursor-pointer ${
+        isPositive ? 'bg-success' : 'bg-danger'
+      }`}
+      style={{ opacity: 0.3 + intensity * 0.7 }}
+    >
+      <div className="text-white font-medium text-sm">{sector.name}</div>
+      <div className="text-white/90 text-lg font-bold">
+        {isPositive ? '+' : ''}{sector.changePercent.toFixed(2)}%
+      </div>
+    </div>
+  );
+};
+
+// VIX 情绪卡片
+const SentimentCard = ({ vix, isLoading }: { vix: number | null; isLoading: boolean }) => {
+  if (isLoading || vix === null) {
+    return (
+      <Card className="bg-content1/50 backdrop-blur-sm animate-pulse">
+        <CardBody className="p-4">
+          <div className="h-4 bg-foreground/10 rounded w-24 mb-3"></div>
+          <div className="h-8 bg-foreground/10 rounded w-16"></div>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  const vixLevel = vix < 15 ? 'low' : vix < 25 ? 'normal' : vix < 35 ? 'high' : 'extreme';
+  const levelColors = {
+    low: 'success',
+    normal: 'primary',
+    high: 'warning',
+    extreme: 'danger',
+  };
+  const levelTexts = {
+    low: '市场平静，投资者乐观',
+    normal: '市场正常波动',
+    high: '市场波动加剧，谨慎操作',
+    extreme: '极度恐慌，高风险',
+  };
+
+  return (
+    <Card className="bg-content1/50 backdrop-blur-sm">
+      <CardBody className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Icon icon="mdi:alert-circle" className={`text-${levelColors[vixLevel]}`} />
+          <span className="text-sm text-foreground/50">VIX 恐慌指数</span>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className={`text-2xl font-bold text-${levelColors[vixLevel]}`}>
+            {vix.toFixed(2)}
+          </span>
+        </div>
+        <div className="mt-2 text-xs text-foreground/40">
+          {levelTexts[vixLevel]}
+        </div>
+      </CardBody>
+    </Card>
+  );
+};
+
+// ============ Main Component ============
+
 const MarketAnalysisPage = observer(() => {
+  const [selectedTab, setSelectedTab] = useState<TabId>('overview');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTab, setSelectedTab] = useState('overview');
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  
+  // 市场数据状态
+  const [indices, setIndices] = useState<Map<string, MarketIndex>>(new Map());
+  const [sectors, setSectors] = useState<SectorData[]>([]);
+  const [vix, setVix] = useState<number | null>(null);
+  const [hotStocks, setHotStocks] = useState<Map<string, HotStock>>(new Map());
+
+  // 获取市场指数数据
+  const fetchIndices = useCallback(async () => {
+    const results = new Map<string, MarketIndex>();
+    
+    const promises = MARKET_INDICES.map(async (idx) => {
+      try {
+        const data = await fetchFromWorker(idx.symbol);
+        if (data) {
+          results.set(idx.symbol, {
+            symbol: idx.symbol,
+            name: idx.name,
+            price: data.price,
+            change: data.price - data.prevClose,
+            changePercent: data.changePercent,
+            region: idx.region,
+          });
+        }
+      } catch (err) {
+        console.warn(`Failed to fetch ${idx.symbol}:`, err);
+      }
+    });
+    
+    await Promise.all(promises);
+    setIndices(results);
+  }, []);
+
+  // 获取板块数据
+  const fetchSectors = useCallback(async () => {
+    const sectorData: SectorData[] = [];
+    
+    const promises = SECTOR_ETFS.map(async (etf) => {
+      try {
+        const data = await fetchFromWorker(etf.symbol);
+        if (data) {
+          sectorData.push({
+            name: etf.name,
+            changePercent: data.changePercent,
+          });
+        }
+      } catch (err) {
+        console.warn(`Failed to fetch sector ${etf.symbol}:`, err);
+      }
+    });
+    
+    await Promise.all(promises);
+    sectorData.sort((a, b) => b.changePercent - a.changePercent);
+    setSectors(sectorData);
+  }, []);
+
+  // 获取 VIX
+  const fetchVIX = useCallback(async () => {
+    try {
+      const data = await fetchFromWorker('^VIX');
+      if (data) {
+        setVix(data.price);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch VIX:', err);
+    }
+  }, []);
+
+  // 获取热门股票数据
+  const fetchHotStocks = useCallback(async () => {
+    const results = new Map<string, HotStock>();
+    const allStocks = [...M7_STOCKS, ...CHINA_TECH_STOCKS];
+    
+    const promises = allStocks.map(async (stock) => {
+      try {
+        const data = await fetchFromWorker(stock.symbol);
+        if (data && data.price > 0) {
+          results.set(stock.symbol, {
+            symbol: stock.symbol,
+            name: stock.name,
+            category: stock.category,
+            price: data.price,
+            change: data.price - data.prevClose,
+            changePercent: data.changePercent,
+          });
+        }
+      } catch (err) {
+        console.warn(`Failed to fetch ${stock.symbol}:`, err);
+      }
+    });
+    
+    await Promise.all(promises);
+    setHotStocks(results);
+  }, []);
+
+  // 刷新所有数据
+  const refresh = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        fetchIndices(),
+        fetchSectors(),
+        fetchVIX(),
+        fetchHotStocks(),
+      ]);
+      setLastUpdate(new Date());
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchIndices, fetchSectors, fetchVIX, fetchHotStocks]);
+
+  // 初始加载
+  useEffect(() => {
+    refresh();
+    // 每分钟自动刷新
+    const interval = setInterval(refresh, 60000);
+    return () => clearInterval(interval);
+  }, [refresh]);
 
   return (
     <GradientBackground className="h-full overflow-auto">
       <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         {/* 页面标题 */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <Link to="/investment">
               <Button isIconOnly variant="light" size="sm">
@@ -112,19 +426,33 @@ const MarketAnalysisPage = observer(() => {
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Icon icon="mdi:chart-line" className="text-success" />
                 市场分析
+                <Chip size="sm" color="primary" variant="flat" className="ml-2">
+                  <Icon icon="mdi:pulse" className="mr-1" />
+                  实时
+                </Chip>
               </h1>
               <p className="text-foreground/60 mt-1">
-                实时市场数据与技术分析
+                全球市场概览与深度分析
               </p>
             </div>
           </div>
-          <Button
-            color="primary"
-            variant="flat"
-            startContent={<Icon icon="mdi:refresh" />}
-          >
-            刷新
-          </Button>
+          <div className="flex items-center gap-4">
+            {lastUpdate && (
+              <div className="flex items-center gap-2 text-sm text-foreground/40">
+                <Icon icon="mdi:clock-outline" />
+                <span>更新于 {lastUpdate.toLocaleTimeString()}</span>
+              </div>
+            )}
+            <Button
+              color="primary"
+              variant="flat"
+              startContent={isLoading ? <Spinner size="sm" /> : <Icon icon="mdi:refresh" />}
+              onPress={refresh}
+              isDisabled={isLoading}
+            >
+              刷新
+            </Button>
+          </div>
         </div>
 
         {/* 搜索栏 */}
@@ -143,7 +471,7 @@ const MarketAnalysisPage = observer(() => {
         {/* 标签页 */}
         <Tabs
           selectedKey={selectedTab}
-          onSelectionChange={(key) => setSelectedTab(key as string)}
+          onSelectionChange={(key) => setSelectedTab(key as TabId)}
           variant="underlined"
           classNames={{
             tabList: 'gap-6',
@@ -161,20 +489,29 @@ const MarketAnalysisPage = observer(() => {
             }
           />
           <Tab
-            key="indices"
+            key="sectors"
             title={
               <div className="flex items-center gap-2">
-                <Icon icon="mdi:chart-bar" />
-                <span>指数行情</span>
+                <Icon icon="mdi:fire" />
+                <span>板块热力图</span>
               </div>
             }
           />
           <Tab
-            key="stocks"
+            key="calendar"
             title={
               <div className="flex items-center gap-2">
-                <Icon icon="mdi:fire" />
-                <span>热门股票</span>
+                <Icon icon="mdi:calendar" />
+                <span>财经日历</span>
+              </div>
+            }
+          />
+          <Tab
+            key="economy"
+            title={
+              <div className="flex items-center gap-2">
+                <Icon icon="mdi:gauge" />
+                <span>宏观数据</span>
               </div>
             }
           />
@@ -189,117 +526,195 @@ const MarketAnalysisPage = observer(() => {
           />
         </Tabs>
 
-        {/* 市场概览 */}
+        {/* 市场概览 Tab */}
         {selectedTab === 'overview' && (
           <div className="space-y-6">
-            {/* 主要指数 */}
+            {/* 市场情绪指标 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <SentimentCard vix={vix} isLoading={isLoading} />
+              <Card className="bg-content1/50 backdrop-blur-sm">
+                <CardBody className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Icon icon="mdi:trending-up" className="text-success" />
+                    <span className="text-sm text-foreground/50">市场状态</span>
+                  </div>
+                  <div className="text-xl font-bold">正常交易</div>
+                  <div className="text-xs text-foreground/40 mt-1">美股盘中</div>
+                </CardBody>
+              </Card>
+              <Card className="bg-content1/50 backdrop-blur-sm">
+                <CardBody className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Icon icon="mdi:gauge" className="text-primary" />
+                    <span className="text-sm text-foreground/50">数据源</span>
+                  </div>
+                  <div className="text-xl font-bold">Yahoo Finance</div>
+                  <div className="text-xs text-foreground/40 mt-1">通过 Worker 代理</div>
+                </CardBody>
+              </Card>
+            </div>
+
+            {/* 全球指数 */}
             <div>
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Icon icon="mdi:chart-box" className="text-primary" />
-                主要指数
+                <Icon icon="mdi:earth" className="text-primary" />
+                全球主要指数
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {marketIndices.map(index => (
-                  <IndexCard key={index.code} index={index} />
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                {MARKET_INDICES.map((idx) => (
+                  <IndexCard 
+                    key={idx.symbol} 
+                    index={indices.get(idx.symbol) || null} 
+                    isLoading={isLoading} 
+                  />
                 ))}
               </div>
             </div>
 
-            {/* 热门股票 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="bg-content1/50 backdrop-blur-sm">
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Icon icon="mdi:trending-up" className="text-success" />
-                    <h3 className="font-semibold">涨幅榜</h3>
-                  </div>
-                </CardHeader>
-                <CardBody className="pt-0">
-                  <div className="space-y-1">
-                    {hotStocks.filter(s => s.change > 0).map(stock => (
-                      <StockRow key={stock.ticker} stock={stock} />
-                    ))}
-                  </div>
-                </CardBody>
-              </Card>
+            {/* 快速板块概览 */}
+            <div>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Icon icon="mdi:fire" className="text-warning" />
+                板块表现
+              </h2>
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                {sectors.slice(0, 6).map((sector) => (
+                  <SectorCell 
+                    key={sector.name} 
+                    sector={sector} 
+                    maxChange={Math.max(...sectors.map(s => Math.abs(s.changePercent)), 1)}
+                  />
+                ))}
+              </div>
+            </div>
 
-              <Card className="bg-content1/50 backdrop-blur-sm">
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Icon icon="mdi:trending-down" className="text-danger" />
-                    <h3 className="font-semibold">跌幅榜</h3>
-                  </div>
-                </CardHeader>
-                <CardBody className="pt-0">
-                  <div className="space-y-1">
-                    {hotStocks.filter(s => s.change < 0).map(stock => (
-                      <StockRow key={stock.ticker} stock={stock} />
-                    ))}
-                  </div>
-                </CardBody>
-              </Card>
+            {/* M7 科技巨头 */}
+            <div>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Icon icon="mdi:trending-up" className="text-secondary" />
+                M7 科技巨头
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                {M7_STOCKS.map((stock) => (
+                  <StockCard 
+                    key={stock.symbol} 
+                    stock={hotStocks.get(stock.symbol) || null} 
+                    isLoading={isLoading} 
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* 中概互联 */}
+            <div>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Icon icon="mdi:earth" className="text-danger" />
+                中概互联
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+                {CHINA_TECH_STOCKS.map((stock) => (
+                  <StockCard 
+                    key={stock.symbol} 
+                    stock={hotStocks.get(stock.symbol) || null} 
+                    isLoading={isLoading} 
+                  />
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* 指数行情 */}
-        {selectedTab === 'indices' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {marketIndices.map(index => (
-              <Card key={index.code} className="bg-content1/50 backdrop-blur-sm">
-                <CardBody className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <p className="text-lg font-semibold">{index.name}</p>
-                      <p className="text-xs text-foreground/50">{index.code}</p>
-                    </div>
-                    <Chip
-                      color={index.change >= 0 ? 'success' : 'danger'}
-                      variant="flat"
-                    >
-                      {index.change >= 0 ? '+' : ''}{index.changePercent.toFixed(2)}%
-                    </Chip>
-                  </div>
-                  <p className="text-3xl font-bold">{index.value.toLocaleString()}</p>
-                  <p className={`text-sm mt-2 ${index.change >= 0 ? 'text-success' : 'text-danger'}`}>
-                    {index.change >= 0 ? '+' : ''}{index.change.toFixed(2)}
+        {/* 板块热力图 Tab */}
+        {selectedTab === 'sectors' && (
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Icon icon="mdi:fire" className="text-warning" />
+              美股板块热力图
+            </h2>
+            
+            {/* 自定义热力图 */}
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              {sectors.map((sector) => (
+                <SectorCell 
+                  key={sector.name} 
+                  sector={sector} 
+                  maxChange={Math.max(...sectors.map(s => Math.abs(s.changePercent)), 1)}
+                />
+              ))}
+            </div>
+            
+            {/* TradingView 热力图 */}
+            <TradingViewWidget
+              title="S&P 500 热力图"
+              scriptUrl={TRADINGVIEW_SCRIPTS.stockHeatmap}
+              config={STOCK_HEATMAP_CONFIG}
+              height={500}
+              icon={<Icon icon="mdi:view-grid" className="text-xl text-warning" />}
+            />
+          </div>
+        )}
+
+        {/* 财经日历 Tab */}
+        {selectedTab === 'calendar' && (
+          <EconomicCalendar 
+            defaultCountries={['us', 'cn', 'eu', 'jp']}
+            defaultImportance="all"
+            height={550}
+            showFilters={true}
+          />
+        )}
+
+        {/* 宏观数据 Tab */}
+        {selectedTab === 'economy' && (
+          <MacroDataPanel 
+            defaultTab="overview"
+            height={500}
+          />
+        )}
+
+        {/* 技术分析 Tab */}
+        {selectedTab === 'analysis' && (
+          <div className="space-y-6">
+            <Card className="bg-content1/50 backdrop-blur-sm">
+              <CardBody className="p-4">
+                <Input
+                  placeholder="输入股票代码进行技术分析，如 AAPL, NVDA..."
+                  value={searchQuery}
+                  onValueChange={setSearchQuery}
+                  startContent={<Icon icon="mdi:magnify" className="text-foreground/50" />}
+                  size="lg"
+                />
+              </CardBody>
+            </Card>
+            
+            {searchQuery ? (
+              <TradingViewWidget
+                title={`${searchQuery.toUpperCase()} 技术分析`}
+                scriptUrl={TRADINGVIEW_SCRIPTS.technicalAnalysis}
+                config={{
+                  symbol: searchQuery.toUpperCase(),
+                  interval: '1D',
+                  width: '100%',
+                  height: 500,
+                  isTransparent: true,
+                  colorTheme: 'dark',
+                  locale: 'zh_CN',
+                }}
+                height={500}
+                icon={<Icon icon="mdi:chart-timeline-variant" className="text-xl text-primary" />}
+              />
+            ) : (
+              <Card className="bg-content1/50 backdrop-blur-sm">
+                <CardBody className="p-8 text-center">
+                  <Icon icon="mdi:chart-timeline-variant" className="text-6xl text-primary/50 mb-4 mx-auto" />
+                  <h3 className="text-xl font-semibold mb-2">技术分析工具</h3>
+                  <p className="text-foreground/60 mb-4">
+                    输入股票代码开始技术分析
                   </p>
                 </CardBody>
               </Card>
-            ))}
+            )}
           </div>
-        )}
-
-        {/* 热门股票 */}
-        {selectedTab === 'stocks' && (
-          <Card className="bg-content1/50 backdrop-blur-sm">
-            <CardHeader>
-              <h3 className="font-semibold">热门股票</h3>
-            </CardHeader>
-            <CardBody className="pt-0">
-              <div className="space-y-2">
-                {hotStocks.map(stock => (
-                  <StockRow key={stock.ticker} stock={stock} />
-                ))}
-              </div>
-            </CardBody>
-          </Card>
-        )}
-
-        {/* 技术分析 */}
-        {selectedTab === 'analysis' && (
-          <Card className="bg-content1/50 backdrop-blur-sm">
-            <CardBody className="p-8 text-center">
-              <Icon icon="mdi:chart-timeline-variant" className="text-6xl text-primary/50 mb-4 mx-auto" />
-              <h3 className="text-xl font-semibold mb-2">技术分析工具</h3>
-              <p className="text-foreground/60 mb-4">
-                高级图表分析功能正在开发中...
-              </p>
-              <Button color="primary" variant="flat">
-                敬请期待
-              </Button>
-            </CardBody>
-          </Card>
         )}
       </div>
     </GradientBackground>

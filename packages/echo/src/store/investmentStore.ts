@@ -14,7 +14,6 @@
 
 import { makeAutoObservable, runInAction } from 'mobx';
 import { Store } from './standard/base';
-import { useEffect } from 'react';
 import { 
   DualDatabaseClient, 
   getDatabaseClient, 
@@ -97,6 +96,17 @@ export class InvestmentStore implements Store {
 
   // 持仓数据
   positions: Position[] = [];
+
+  // Dashboard 快照（包含净值、盈亏等汇总数据）
+  dashboardSnapshot: {
+    netWorthCNY: number;
+    netWorthUSD: number;
+    dailyPnL: number;
+    dailyPnLPercent: number;
+    drawdownPercent: number;
+    cashRatio: number;
+    longRatio: number;
+  } | null = null;
 
   // 风险指标
   riskMetrics: RiskMetrics | null = null;
@@ -232,6 +242,8 @@ export class InvestmentStore implements Store {
 
       runInAction(() => {
         // 转换数据库字段名到驼峰命名
+        // 优先使用 CNY 字段，如果没有则用 USD 字段 * 汇率
+        const USD_CNY = 7.04;
         this.positions = latestPositions.map(row => ({
           id: String(row.id),
           ticker: row.ticker,
@@ -239,8 +251,10 @@ export class InvestmentStore implements Store {
           quantity: row.quantity,
           avgCost: Number(row.avg_cost) || 0,
           currentPrice: Number(row.current_price) || 0,
-          marketValue: Number(row.market_value) || 0,
-          unrealizedPnL: Number(row.unrealized_pnl) || 0,
+          // 使用 CNY 市值
+          marketValue: Number(row.market_value_cny) || Number(row.market_value || 0) * USD_CNY,
+          // 使用 CNY 盈亏
+          unrealizedPnL: Number(row.unrealized_pnl_cny) || Number(row.unrealized_pnl || 0) * USD_CNY,
           unrealizedPnLPercent: Number(row.unrealized_pnl_percent) || 0,
           weight: Number(row.weight_percent) || 0,
           // 根据 position_type 推断 assetType，默认为 stock
@@ -278,7 +292,7 @@ export class InvestmentStore implements Store {
   }
 
   /**
-   * 获取风险指标
+   * 获取风险指标和 Dashboard 数据
    * 从 dashboard_snapshots 表获取最新快照，并构建 RiskMetrics
    * 
    * 注意：dashboard_snapshots 表没有 risk_metrics JSONB 字段，
@@ -335,6 +349,18 @@ export class InvestmentStore implements Store {
         this.riskMetrics = metrics;
         this.tradingDecision = decision;
         this.circuitBreakerStates = breakerStates;
+        
+        // 保存 Dashboard 快照数据
+        this.dashboardSnapshot = {
+          netWorthCNY: Number(data?.net_worth_cny) || 0,
+          netWorthUSD: Number(data?.net_worth_usd) || 0,
+          dailyPnL: Number(data?.daily_pnl) || 0,
+          dailyPnLPercent: Number(data?.daily_pnl_percent) || 0,
+          drawdownPercent: Number(data?.drawdown_percent) || 0,
+          cashRatio: Number(data?.cash_ratio) || 0,
+          longRatio: Number(data?.long_ratio) || 0,
+        };
+        
         this.loading.riskMetrics = false;
       });
     } catch (error) {
@@ -408,14 +434,38 @@ export class InvestmentStore implements Store {
   }
 
   /**
-   * 总持仓市值
+   * 账户净值（CNY）
+   * 优先使用 dashboard_snapshots 的 net_worth_cny
+   * 这是账户的真实净值，包含现金和持仓
+   */
+  get accountNetWorth(): number {
+    return this.dashboardSnapshot?.netWorthCNY || 0;
+  }
+
+  /**
+   * 总持仓市值（CNY）
+   * 从 positions 累加，仅代表持仓市值，不包含现金
    */
   get totalMarketValue(): number {
     return this.positions.reduce((sum, p) => sum + p.marketValue, 0);
   }
 
   /**
-   * 总未实现盈亏
+   * 日盈亏
+   */
+  get dailyPnL(): number {
+    return this.dashboardSnapshot?.dailyPnL || 0;
+  }
+
+  /**
+   * 日盈亏百分比
+   */
+  get dailyPnLPercent(): number {
+    return this.dashboardSnapshot?.dailyPnLPercent || 0;
+  }
+
+  /**
+   * 总未实现盈亏（CNY）
    */
   get totalUnrealizedPnL(): number {
     return this.positions.reduce((sum, p) => sum + p.unrealizedPnL, 0);
@@ -618,13 +668,13 @@ export class InvestmentStore implements Store {
   // ============================================
 
   /**
-   * 初始化 Hook
-   * 在组件中使用以自动加载数据
+   * 初始化方法
+   * 在组件中调用以加载数据
    */
   use(): void {
-    useEffect(() => {
-      this.refreshAll();
-    }, []);
+    // 直接调用，不使用 useEffect
+    // useEffect 应该在组件中使用，而不是在 store 中
+    this.refreshAll();
   }
 }
 
