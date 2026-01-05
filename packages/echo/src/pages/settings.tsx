@@ -27,6 +27,7 @@ import { ImportAIDialog } from '@/components/BlinkoSettings/ImportAIDialog';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Icon } from '@/components/Common/Iconify/icons';
 import { HotkeySetting } from '@/components/BlinkoSettings/HotkeySetting';
+import { BackupSetting } from '@/components/BlinkoSettings/BackupSetting';
 import { isDesktop } from '@/lib/tauriHelper';
 
 type SettingItem = {
@@ -101,6 +102,14 @@ export const allSettings: SettingItem[] = [
     component: <StorageSetting />,
     requireAdmin: true,
     keywords: ['storage', 'database', '存储', '数据库'],
+  },
+  {
+    key: 'backup',
+    title: '数据库备份',
+    icon: 'mdi:backup-restore',
+    component: <BackupSetting />,
+    requireAdmin: true,
+    keywords: ['backup', 'restore', 'database', '备份', '恢复', '数据库'],
   },
   {
     key: 'janitor',
