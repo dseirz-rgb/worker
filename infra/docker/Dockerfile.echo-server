@@ -1,0 +1,82 @@
+# Echo Backend Server Dockerfile
+# 自定义镜像，包含投资模块、AI Agent、Google Drive 同步等功能
+# 构建命令: docker build -f infra/docker/Dockerfile.echo-server -t echo-server .
+
+# ============ Build Stage ============
+FROM oven/bun:1.2.8 AS builder
+
+WORKDIR /app
+
+# Sharp 和 Prisma 优化
+ENV SHARP_IGNORE_GLOBAL_LIBVIPS=1
+ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true
+
+# 复制根目录依赖文件
+COPY package.json bun.lock ./
+
+# 复制子包的 package.json
+COPY packages/echo/package.json ./packages/echo/
+COPY services/echo-server/package.json ./services/echo-server/
+
+# 复制 Prisma schema
+COPY infra/prisma/schema.prisma ./infra/prisma/
+
+# 安装依赖 (允许 lockfile 不完全匹配)
+RUN bun install --no-frozen-lockfile
+
+# 复制源代码
+COPY packages/echo ./packages/echo
+COPY services/echo-server ./services/echo-server
+COPY infra/prisma ./infra/prisma
+
+# 生成 Prisma Client
+WORKDIR /app/infra/prisma
+RUN bunx prisma generate
+
+# 构建后端 (输出到 services/dist/index.js)
+WORKDIR /app/services/echo-server
+RUN bun run build:web
+
+# 构建前端
+WORKDIR /app/packages/echo
+RUN bun run build:no-pwa || bun run build:web || echo "Frontend build skipped"
+
+# 创建启动脚本
+WORKDIR /app
+RUN printf '#!/bin/sh\nset -e\necho "Starting Echo Server..."\necho "Running Prisma migrations..."\nnpx prisma migrate deploy --schema=/app/infra/prisma/schema.prisma || echo "Migration skipped"\necho "Starting Node server..."\nnode /app/services/dist/index.js\n' > start.sh && \
+    chmod +x start.sh
+
+# ============ Runtime Stage ============
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# 环境变量
+ENV NODE_ENV=production
+ENV TRUST_PROXY=1
+ENV PORT=8080
+
+# 安装运行时依赖
+RUN apk add --no-cache openssl curl
+
+# 复制构建产物
+COPY --from=builder /app/services/dist ./services/dist
+COPY --from=builder /app/services/echo-server/lute.min.js ./services/dist/ 2>/dev/null || true
+COPY --from=builder /app/packages/echo/dist ./packages/echo/dist 2>/dev/null || true
+COPY --from=builder /app/infra/prisma ./infra/prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/start.sh ./
+
+# 安装运行时 npm 依赖
+RUN npm install -g prisma@5.21.1 && \
+    npm install @node-rs/crc32 sharp@0.34.1 sqlite3@5.1.7 && \
+    rm -rf /tmp/* /root/.npm /root/.cache
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
+
+EXPOSE 8080
+
+CMD ["/bin/sh", "-c", "./start.sh"]

@@ -5,6 +5,7 @@ import zlib from 'zlib';
 import fs from 'fs';
 import authRoutes from './routerExpress/auth';
 import { configureSession } from './routerExpress/auth/config';
+import { prisma } from './prisma';
 
 // pg-boss job scheduling
 import { getPgBoss, stopPgBoss } from './lib/pgBoss';
@@ -104,7 +105,7 @@ async function initializeJobs() {
 
 // Server configuration
 const app = express();
-const PORT = 1111;
+const PORT = parseInt(process.env.PORT || '1111', 10);
 // 前端代码在 packages/echo/，后端代码在 services/echo-server/
 // __dirname = services/echo-server, 需要向上两级到项目根目录
 const appRootDev = path.resolve(__dirname, '../../packages/echo');
@@ -285,6 +286,50 @@ async function bootstrap() {
     // Health check endpoint (不依赖数据库)
     app.get('/health', (req, res) => {
       res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    });
+
+    // 详细健康检查端点 - 检查各个服务状态
+    app.get('/api/v1/health', async (req, res) => {
+      const services: Record<string, { status: 'up' | 'down'; latency_ms?: number; error?: string }> = {};
+      let overallStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+
+      // 检查 Echo DB (Prisma)
+      const echoDbStart = Date.now();
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+        services.echoDb = { status: 'up', latency_ms: Date.now() - echoDbStart };
+      } catch (error) {
+        services.echoDb = { status: 'down', latency_ms: Date.now() - echoDbStart, error: String(error) };
+        overallStatus = 'unhealthy';
+      }
+
+      // 检查 Investment DB (Supabase)
+      const investmentDbStart = Date.now();
+      try {
+        const { getInvestmentDb } = await import('./lib/investmentDb');
+        const client = getInvestmentDb();
+        if (client) {
+          const { error } = await client.from('dashboard_snapshots').select('id').limit(1);
+          if (error) {
+            services.investmentDb = { status: 'down', latency_ms: Date.now() - investmentDbStart, error: error.message };
+            overallStatus = overallStatus === 'unhealthy' ? 'unhealthy' : 'degraded';
+          } else {
+            services.investmentDb = { status: 'up', latency_ms: Date.now() - investmentDbStart };
+          }
+        } else {
+          services.investmentDb = { status: 'down', latency_ms: 0, error: 'Client not configured' };
+          overallStatus = overallStatus === 'unhealthy' ? 'unhealthy' : 'degraded';
+        }
+      } catch (error) {
+        services.investmentDb = { status: 'down', latency_ms: Date.now() - investmentDbStart, error: String(error) };
+        overallStatus = overallStatus === 'unhealthy' ? 'unhealthy' : 'degraded';
+      }
+
+      res.json({
+        status: overallStatus,
+        timestamp: new Date().toISOString(),
+        services,
+      });
     });
 
     await configureSession(app);

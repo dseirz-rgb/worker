@@ -140,39 +140,43 @@ status() {
     echo ""
 }
 
-# 启动 Blinko
+# 启动 Echo (原 Blinko)
 start_blinko() {
-    info "启动 Blinko..."
-    cd get/blinko-main
+    info "启动 Echo..."
     
-    # 安装依赖（如果需要）
+    # 启动后端
+    info "启动后端 (echo-server)..."
+    cd services/echo-server
     if [ ! -d "node_modules" ]; then
-        info "安装依赖..."
+        info "安装后端依赖..."
         bun install
     fi
-    
-    # 启动开发服务器
-    info "启动后端..."
-    bun run dev:backend &
-    echo $! > "../../$PID_DIR/blinko-backend.pid"
+    bun run dev &
+    echo $! > "../../$PID_DIR/echo-backend.pid"
+    cd ../..
     
     sleep 3
     
-    info "启动前端..."
-    bun run dev:frontend &
-    echo $! > "../../$PID_DIR/blinko-frontend.pid"
-    
+    # 启动前端
+    info "启动前端 (packages/echo)..."
+    cd packages/echo
+    if [ ! -d "node_modules" ]; then
+        info "安装前端依赖..."
+        bun install
+    fi
+    bun run dev &
+    echo $! > "../../$PID_DIR/echo-frontend.pid"
     cd ../..
     
     # 等待启动
     for i in {1..30}; do
         if curl -s http://localhost:1111 > /dev/null 2>&1; then
-            success "Blinko 已启动"
+            success "Echo 已启动"
             return 0
         fi
         sleep 1
     done
-    warn "Blinko 启动超时，请检查日志"
+    warn "Echo 启动超时，请检查日志"
 }
 
 # 启动所有服务

@@ -2,10 +2,10 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Echo",
   "version": "1.8.0",
-  "identifier": "com.echo.app",
+  "identifier": "com.lidezhe.echoai",
   "build": {
     "beforeDevCommand": "",
-    "devUrl": "http://localhost:1111",
+    "devUrl": "http://10.250.245.16:1111",
     "beforeBuildCommand": "bun run build:no-pwa",
     "frontendDist": "../../dist/public"
   },

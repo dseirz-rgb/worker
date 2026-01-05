@@ -13,6 +13,7 @@ import { BlinkoMultiSelectPop } from '@/components/BlinkoMultiSelectPop';
 import { BlinkoMusicPlayer } from '@/components/BlinkoMusicPlayer';
 import { LoadingPage } from '@/components/Common/LoadingPage';
 import { ErrorBoundary } from '@/components/Common/ErrorBoundary';
+import { ServiceStatusBanner } from '@/components/Common/ServiceStatusBanner';
 import { PluginManagerStore } from '@/store/plugin/pluginManagerStore';
 import { RootStore } from '@/store';
 import { UserStore } from '@/store/user';
@@ -353,6 +354,7 @@ function App() {
         <HeroUIProvider>
           <ThemeProvider attribute="class" enableSystem={false}>
             <AppProvider />
+            <ServiceStatusBanner />
             <ErrorBoundary>
               <CommonLayout>
                 <div className="app-content">
